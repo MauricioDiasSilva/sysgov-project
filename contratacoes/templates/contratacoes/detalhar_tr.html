@@ -1,0 +1,81 @@
+{# contratacoes/templates/contratacoes/detalhar_tr.html #}
+
+{% extends 'base.html' %}
+
+{% block title %}Detalhes do TR - {{ tr.titulo }}{% endblock %}
+{% block main_title %}Detalhes do TR: {{ tr.titulo }}{% endblock %}
+
+{% block content %}
+
+      <p>
+            <a href="{% url 'contratacoes:listar_trs' %}" class="button">Voltar para a Lista de TRs</a>
+            {% if pode_editar_tr %}
+                <a href="{% url 'contratacoes:editar_tr' pk=tr.pk %}" class="button" style="background-color: #ffc107; color: #343a40;">Editar TR</a>
+            {% endif %}
+            {% if pode_alterar_status_tr %} {# Assumindo que você passou essa variável no contexto da view #}
+                <a href="{% url 'contratacoes:alterar_status_tr' pk=tr.pk %}" class="button" style="background-color: #17a2b8;">Alterar Status</a>
+            {% endif %}
+            {% if pode_gerar_pdf %} {# Variável passada do contexto da view #}
+                <a href="{% url 'contratacoes:gerar_tr_pdf' pk=tr.pk %}" class="button" style="background-color: #dc3545;">Gerar PDF</a>
+            {% endif %}
+        </p>
+
+    {# Seções de texto do TR #}
+    <h3>7. Critérios de Habilitação (Técnica)</h3>
+    <p>{{ tr.criterios_habilitacao|linebreaksbr }}</p>
+
+    <h3>8. Critérios de Aceitação do Objeto</h3>
+    <p>{{ tr.criterios_aceitacao|linebreaksbr }}</p>
+
+    <h3>9. Critérios de Pagamento</h3>
+    <p>{{ tr.criterios_pagamento|linebreaksbr }}</p>
+
+    <h3>10. Obrigações da Contratada e da Contratante</h3>
+    <p>{{ tr.obrigacoes_partes|linebreaksbr }}</p>
+
+    <h3>11. Sanções Administrativas</h3>
+    <p>{{ tr.sancoes_administrativas|linebreaksbr }}</p>
+
+    <h3>12. Fiscalização do Contrato</h3>
+    <p>{{ tr.fiscalizacao_contrato|linebreaksbr }}</p>
+
+    <h3>13. Vigência do Contrato</h3>
+    <p>{{ tr.vigencia_contrato }}</p>
+
+    <h3>14. Estimativa de Preço (R$)</h3>
+    <p>R$ {{ tr.estimativa_preco_tr|floatformat:2 }}</p>
+
+    {% if tr.observacoes_analise %}
+        <h3>Observações da Análise</h3>
+        <p>{{ tr.observacoes_analise|linebreaksbr }}</p>
+    {% endif %}
+
+    {# Seção de Anexos #}
+    <h3>Anexos</h3>
+       {% if tr.anexos.all %}
+        <h6 class="px-3 pt-3 pb-2 mb-0 fw-bold text-muted">Anexos do TR:</h6>
+        <ul class="list-group list-group-flush">
+            {% for anexo in tr.anexos.all %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="{{ anexo.get_file_url }}" target="_blank">
+                        <i class="bi bi-file-earmark{% if anexo.is_pdf %}-pdf{% elif anexo.is_image %}-image{% elif anexo.is_xml %}-code{% else %}-text{% endif %} me-2"></i>
+                        {{ anexo.titulo }} ({{ anexo.arquivo.name|cut:"anexos/" }})
+                    </a>
+                    - Enviado por {{ anexo.uploaded_by.username }} em {{ anexo.data_upload|date:"d/m/Y H:i" }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>Nenhum anexo para este Termo de Referência.</p>
+    {% endif %}
+
+    {# Use a nova variável passada da view #}
+    {% if pode_adicionar_anexo_tr %}
+        <p>
+            <a href="{% url 'contratacoes:adicionar_anexo_tr' pk=tr.pk %}" class="btn btn-sm btn-outline-primary mt-3">
+                <i class="bi bi-plus-circle"></i> Adicionar Anexo ao TR
+            </a>
+        </p>
+    {% endif %}
+
+{% endblock %}

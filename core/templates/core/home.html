@@ -1,0 +1,100 @@
+{# SysGov_Project/core/templates/core/home.html #}
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard Principal - SysGov{% endblock title %}
+
+{% block content %}
+<div class="hero-section text-white text-center py-5">
+    <div class="container">
+        <h1 class="display-4 fw-bold mb-3">Bem-vindo ao SysGov!</h1>
+        <p class="lead mb-4">Sua plataforma completa para gestão de contratos e licitações. Simplifique processos, garanta transparência e esteja em conformidade.</p>
+        {% if user.is_authenticated %}
+            <a href="{% url 'meus_processos' %}" class="btn btn-light btn-lg rounded-pill px-4 me-3"><i class="fas fa-folder-open me-2"></i> Meus Processos</a>
+            <a href="{% url 'contratacoes:criar_etp' %}" class="btn btn-outline-light btn-lg rounded-pill px-4"><i class="fas fa-plus-circle me-2"></i> Iniciar Novo ETP</a>
+        {% else %}
+            <p class="lead mt-4">Faça login para começar a gerenciar seus processos ou cadastre-se para criar sua conta.</p>
+            <a href="{% url 'account_login' %}" class="btn btn-light btn-lg rounded-pill px-4 me-3">Entrar</a>
+            <a href="{% url 'account_signup' %}" class="btn btn-success btn-lg rounded-pill px-4">Cadastrar</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container my-5">
+    <h2 class="text-center mb-4 display-5 fw-bold text-primary">Navegue pelos Módulos</h2>
+    <p class="text-center lead mb-5">Explore as principais áreas do sistema para entender e gerenciar cada etapa do ciclo de contratação.</p>
+
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {# Card para Processos #}
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0 rounded-4">
+                <div class="card-body text-center p-4">
+                    <i class="fas fa-project-diagram fa-3x text-primary mb-3"></i>
+                    <h5 class="card-title fw-bold">Processos Gerais</h5>
+                    <p class="card-text text-muted">Acompanhe todos os processos administrativos e seus documentos vinculados.</p>
+                    <a href="{% url 'meus_processos' %}" class="btn btn-outline-primary btn-sm mt-3">Ver Meus Processos</a>
+                </div>
+            </div>
+        </div>
+
+        {# Card para Contratações #}
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0 rounded-4">
+                <div class="card-body text-center p-4">
+                    <i class="fas fa-file-contract fa-3x text-success mb-3"></i>
+                    <h5 class="card-title fw-bold">Módulo Contratações</h5>
+                    <p class="card-text text-muted">Gerencie Estudos Técnicos Preliminares (ETP), Termos de Referência (TR) e Planos de Contratação (PCA).</p>
+                    <a href="{% url 'contratacoes:dashboard_contratacoes' %}" class="btn btn-outline-success btn-sm mt-3">Acessar Contratações</a>
+                </div>
+            </div>
+        </div>
+
+        {# Card para Licitações #}
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0 rounded-4">
+                <div class="card-body text-center p-4">
+                    <i class="fas fa-gavel fa-3x text-warning mb-3"></i>
+                    <h5 class="card-title fw-bold">Módulo Licitações</h5>
+                    <p class="card-text text-muted">Controle Editais e seus Resultados, desde a publicação até a homologação.</p>
+                    <a href="{% url 'licitacoes:dashboard_licitacoes' %}" class="btn btn-outline-warning btn-sm mt-3">Acessar Licitações</a>
+                </div>
+            </div>
+        </div>
+
+        {# Card para Financeiro #}
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0 rounded-4">
+                <div class="card-body text-center p-4">
+                    <h3 class="card-title text-primary fs-4 fw-bold mb-3">Gestão de Empenhos e Pagamentos</h3>
+                    <p class="card-text text-muted mb-4">Gerencie a emissão de documentos fiscais e organize as informações para a prestação de contas aos órgãos de controle como o Audesp.</p>
+                    <a href="{% url 'financeiro:dashboard_financeiro' %}" class="btn btn-outline-success btn-sm mt-3"></i> Acessar Módulo</a>
+                </div>
+            </div>
+        </div>
+
+        {# Card para Integração AUDESP #}
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0 rounded-4">
+                <div class="card-body text-center p-4">
+                    <i class="fas fa-cloud-upload-alt fa-3x text-danger mb-3"></i>
+                    <h5 class="card-title fw-bold">Integração AUDESP</h5>
+                    <p class="card-text text-muted">Envie dados de Editais, Ajustes, Atas RP e Empenhos para o Tribunal de Contas de forma automatizada.</p>
+                    <a href="{% url 'integracao_audesp:listar_submissoes_audesp' %}" class="btn btn-outline-danger btn-sm mt-3">Ver Submissões AUDESP</a>
+                </div>
+            </div>
+        </div>
+
+        {# Card para Catálogos e Padrões #}
+        <div class="col">
+            <div class="card h-100 shadow-sm border-0 rounded-4">
+                <div class="card-body text-center p-4">
+                    <i class="fas fa-book fa-3x text-secondary mb-3"></i>
+                    <h5 class="card-title fw-bold">Catálogos e Padrões</h5>
+                    <p class="card-text text-muted">Consulte o catálogo de itens padronizados, modelos de texto e requisitos padrão.</p>
+                    <a href="{% url 'contratacoes:listar_catalogo_itens' %}" class="btn btn-outline-secondary btn-sm mt-3">Acessar Catálogos</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

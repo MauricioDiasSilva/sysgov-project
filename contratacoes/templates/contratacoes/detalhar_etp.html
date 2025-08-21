@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+
+{% block title %}Detalhes do ETP - {{ etp.titulo }}{% endblock %}
+{% block main_title %}Detalhes do ETP: {{ etp.titulo }}{% endblock %}
+
+{% block content %}
+
+    <h3>Análise Preliminar Automatizada</h3>
+    {% if pendencias_analise %}
+        <div style="background-color: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 4px; color: #856404; margin-bottom: 20px;">
+            <p><strong>Atenção: Foram identificadas as seguintes pendências ou pontos a revisar no ETP:</strong></p>
+            <ul style="margin-left: 20px;">
+                {% for pendencia in pendencias_analise %}
+                    <li>{{ pendencia }}</li>
+                {% endfor %}
+            </ul>
+            <p>Revise o ETP antes de prosseguir com a aprovação ou geração do Termo de Referência.</p>
+        </div>
+    {% else %}
+        <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 4px; color: #155724; margin-bottom: 20px;">
+            <p>✔️ O ETP parece **completo** na análise preliminar. Prossiga com a revisão.</p>
+        </div>
+    {% endif %}
+
+    {# Adição da visualização do Item PCA Vinculado #}
+    {% if etp.item_pca_vinculado %}
+        <div style="background-color: #e9ecef; border: 1px solid #dee2e6; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+            <h4>Detalhes do Item PCA Vinculado:</h4>
+            <p><strong>PCA:</strong> {{ etp.item_pca_vinculado.pca.ano_vigencia }}</p>
+            <p><strong>Identificador:</strong> {{ etp.item_pca_vinculado.identificador_item }}</p>
+            <p><strong>Descrição PCA:</strong> {{ etp.item_pca_vinculado.descricao_item|linebreaksbr }}</p>
+            <p><strong>Valor Estimado no PCA:</strong> R$ {{ etp.item_pca_vinculado.valor_estimado_pca|floatformat:2 }}</p>
+            <p><strong>Unidade Requisitante PCA:</strong> {{ etp.item_pca_vinculado.unidade_requisitante }}</p>
+            {% if request.user.is_staff %}
+                <a href="{% url 'admin:contratacoes_itempca_change' etp.item_pca_vinculado.pk %}" target="_blank" style="font-size: 0.9em;">(Ver/Editar Item PCA no Admin)</a>
+            {% endif %}
+        </div>
+    {% endif %}
+{# C:\Users\Mauricio\Desktop\ETP-TR\contratacoes\templates\contratacoes\editar_etp.html #}
+
+{# ... (cabeçalho, detalhes do ETP e todo o formulário de edição do ETP) ... #}
+
+{# O FORMULÁRIO DE EDIÇÃO DO ETP DEVE COMEÇAR AQUI E INCLUIR APENAS SEUS CAMPOS E BOTÕES DE SUBMIT/CANCELAR #}
+<form method="post">
+    {% csrf_token %}
+    {# Renderiza os campos do formulário principal #}
+    {% for field in form %}
+        <div class="mb-3">
+            <label class="form-label">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}
+                <div class="form-text">{{ field.help_text }}</div>
+            {% endif %}
+            {% if field.errors %}
+                <div class="text-danger small">
+                    {% for error in field.errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    {% endfor %}
+
+    <hr />
+    <h4>Pesquisas de Preço</h4>
+    {{ pesquisa_preco_formset.management_form }}
+    <div id="formset-container">
+        {% for form in pesquisa_preco_formset %}
+            <div class="border rounded p-3 mb-3 bg-light">
+                {% for field in form %}
+                    <div class="mb-3">
+                        <label class="form-label">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <div class="text-danger small">
+                                {% for error in field.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+    {# ... (JavaScript para adicionar mais formsets, se você o tiver aqui) ... #}
+
+    {# BOTÕES DE SUBMIT/CANCELAR DO FORMULÁRIO DE EDIÇÃO - DENTRO DA TAG <FORM> #}
+    <p>
+    <button type="submit" class="button">Salvar Alterações</button>
+    <a href="{% url 'contratacoes:detalhar_etp' pk=etp.pk %}" class="button" style="background-color: #6c757d;">Cancelar</a> {# <<< AJUSTE AQUI! #}
+</p>
+</form>
+
+{# --- INÍCIO DOS BOTÕES DE AÇÃO GERAIS (FORA DA TAG <FORM>) --- #}
+{# Estes botões devem estar fora do <form> de edição, pois são ações separadas #}
+<p>
+    <a href="{% url 'contratacoes:listar_etps' %}" class="button">Voltar para a Lista</a>
+
+    {# O botão "Editar ETP" não faz sentido aqui, pois você já está editando o ETP. #}
+    {# Remova-o ou mova-o para a página de detalhes, onde ele é útil. #}
+    {% comment %}
+    {% if pode_editar_etp %}
+        <a href="{% url 'contratacoes:editar_etp' pk=etp.pk %}" class="button" style="background-color: #ffc107; color: #343a40;">Editar ETP</a>
+    {% endif %}
+    {% endcomment %}
+
+    {% if pode_alterar_status %}
+        <a href="{% url 'contratacoes:alterar_status_etp' pk=etp.pk %}" class="button" style="background-color: #17a2b8;">Alterar Status</a>
+    {% endif %}
+
+    <a href="{% url 'contratacoes:gerar_etp_pdf' pk=etp.pk %}" class="btn btn-info">Gerar PDF do ETP</a>
+
+    {# Lógica Condicional para os Botões/Links do TR #}
+    {% if tr_vinculado %} {# SE HOUVER UM TR VINCULADO A ESTE ETP #}
+        <a href="{% url 'contratacoes:detalhar_tr' pk=tr_vinculado.pk %}" class="button" style="background-color: #007bff;">Ver Detalhes do TR</a>
+        <a href="{% url 'contratacoes:editar_tr' pk=tr_vinculado.pk %}" class="button" style="background-color: #6f42c1;">Editar TR</a>
+    {% else %} {# SE NÃO HOUVER TR VINCULADO #}
+        {% if pode_gerar_tr %}
+            {% if etp.status == 'APROVADO' and not pendencias_analise %}
+                <a href="{% url 'contratacoes:gerar_tr_a_partir_etp' pk=etp.pk %}" class="button" style="background-color: #28a745;">Gerar Termo de Referência</a>
+            {% else %}
+                <button class="button" style="background-color: #6c757d; cursor: not-allowed;" disabled title="O ETP deve estar 'APROVADO' e sem pendências para gerar o TR.">Gerar Termo de Referência</button>
+            {% endif %}
+        {% endif %}
+    {% endif %}
+</p>
+{# --- FIM DOS BOTÕES DE AÇÃO GERAIS --- #}
+
+{# ... (restante do conteúdo do template, como Pesquisas de Preço Coletadas, Anexos, Consulta ao Catálogo) ... #}
+
+    <h3>Pesquisas de Preço Coletadas</h3>
+{% if etp.pesquisas_preco.all %}
+    <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="padding: 8px; border: 1px solid #dee2e6; text-align: left;">Data</th>
+                <th style="padding: 8px; border: 1px solid #dee2e6; text-align: left;">Fornecedor</th>
+                <th style="padding: 8px; border: 1px solid #dee2e6; text-align: left;">Valor (R$)</th>
+                <th style="padding: 8px; border: 1px solid #dee2e6; text-align: left;">Fonte</th>
+                <th style="padding: 8px; border: 1px solid #dee2e6; text-align: left;">Observações</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pesquisa in etp.pesquisas_preco.all %}
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #dee2e6;">{{ pesquisa.data_pesquisa|date:"d/m/Y" }}</td>
+                    <td style="padding: 8px; border: 1px solid #dee2e6;">{{ pesquisa.fornecedor_nome|default:"N/A" }}</td>
+                    <td style="padding: 8px; border: 1px solid #dee2e6;">R$ {{ pesquisa.valor_cotado|floatformat:2 }}</td>
+                    <td style="padding: 8px; border: 1px solid #dee2e6;">
+                        {% if pesquisa.fonte_link %}
+                            <a href="{{ pesquisa.fonte_link }}" target="_blank">Link da Fonte</a>
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </td>
+                    <td style="padding: 8px; border: 1px solid #dee2e6;">{{ pesquisa.observacoes|default:"-" }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr style="background-color: #e9ecef; font-weight: bold;">
+                <td colspan="2" style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">Média dos Preços:</td>
+                <td colspan="3" style="padding: 8px; border: 1px solid #dee2e6;">R$ {{ media_precos|floatformat:2 }}</td>
+            </tr>
+        </tfoot>
+    </table>
+    <p style="font-size: 0.9em; margin-top: 10px;">
+        O valor estimado no ETP (R$ {{ etp.estimativa_valor|floatformat:2 }}) deve ser compatível com a média dos preços pesquisados.
+        <br>Se necessário, edite o ETP para adicionar ou ajustar as pesquisas de preço.
+    </p>
+{% else %}
+    <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 4px; color: #721c24; margin-bottom: 10px;">
+        <p>⚠️ Nenhuma pesquisa de preço adicionada para este ETP. Este é um requisito fundamental para a análise de economicidade.</p>
+    </div>
+{% endif %}
+
+
+<h3>Anexos</h3>
+{% if etp.anexos.all %}
+    <ul>
+        {% for anexo in etp.anexos.all %}
+            <li><a href="{{ anexo.get_file_url }}" target="_blank">{{ anexo.titulo }} ({{ anexo.arquivo.name|cut:"anexos/" }})</a> - Enviado por {{ anexo.uploaded_by.username }} em {{ anexo.data_upload|date:"d/m/Y H:i" }}</li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>Nenhum anexo para este ETP.</p>
+{% endif %}
+{% if perms.contratacoes.add_anexo %}
+    <p>
+        <a href="{% url 'contratacoes:adicionar_anexo_etp' etp_id=etp.pk %}" class="button" style="background-color: #6c757d;">Adicionar Anexo</a>
+    </p>
+{% endif %}
+
+{% endblock %}
+
+<h3>Consulta ao Catálogo de Itens Anteriores</h3>
+<div style="background-color: #f0f8ff; border: 1px solid #bce8f1; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+    <p>Utilize esta seção para comparar o produto/serviço requisitado neste ETP com itens já contratados anteriormente.</p>
+    <input type="text" id="catalogo_search_input" placeholder="Buscar no catálogo (ex: cadeira, licença software)" style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;">
+    <div id="catalogo_results">
+        {# Resultados da busca virão aqui (via JavaScript) #}
+        <p><strong>Exemplos de itens no catálogo:</strong></p>
+        <ul>
+            {% for item in itens_catalogo_sugestao %}
+                <li>{{ item.nome_padronizado }} (R$ {{ item.preco_historico_medio|floatformat:2 }} por {{ item.unidade_medida }})</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <script>
+        // JavaScript simples para busca no catálogo (sem AJAX, apenas para demonstração)
+        document.getElementById('catalogo_search_input').addEventListener('keyup', function() {
+            var input, filter, ul, li, a, i, txtValue;
+            input = document.getElementById('catalogo_search_input');
+            filter = input.value.toUpperCase();
+            ul = document.getElementById('catalogo_results').querySelector('ul');
+            if (!ul) {
+                ul = document.createElement('ul');
+                document.getElementById('catalogo_results').appendChild(ul);
+            }
+            ul.innerHTML = ''; // Limpa resultados anteriores
+
+            // Para uma busca real, você precisaria de uma requisição AJAX para uma view de busca
+            // e então popular este UL com os resultados do backend.
+            // Ex: fetch('/contratacoes/catalogo/search/?q=' + filter) ...
+            // Por enquanto, apenas um exemplo de como seria a interação.
+
+            if (filter.length > 2) { // Só busca se tiver mais de 2 caracteres
+                document.getElementById('catalogo_results').innerHTML = '<p>Funcionalidade de busca avançada (via AJAX) será implementada futuramente.</p>';
+            } else {
+                document.getElementById('catalogo_results').innerHTML = '<p><strong>Exemplos de itens no catálogo:</strong></p><ul>' +
+                    '{% for item in itens_catalogo_sugestao %}' +
+                        '<li>{{ item.nome_padronizado }} (R$ {{ item.preco_historico_medio|floatformat:2 }} por {{ item.unidade_medida }})</li>' +
+                    '{% endfor %}' +
+                    '</ul>';
+            }
+        });
+    </script>
+    {% if request.user.is_staff %}
+        <p style="font-size: 0.9em; margin-top: 10px;"><a href="{% url 'admin:contratacoes_itemcatalogo_changelist' %}" target="_blank">Gerenciar Catálogo no Admin</a></p>
+    {% endif %}
+</div>

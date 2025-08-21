@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Termo de Referência - {{ tr.numero_processo }}</title>
+    <meta charset="utf-8">
+    <style>
+        /* Estilos específicos para o PDF */
+        body { font-family: Arial, sans-serif; font-size: 11pt; margin: 2cm; }
+        h1, h2, h3, h4 { color: #003366; margin-top: 1em; margin-bottom: 0.5em; page-break-after: avoid; }
+        h1 { font-size: 18pt; text-align: center; }
+        h2 { font-size: 14pt; }
+        h3 { font-size: 12pt; }
+        p { margin-bottom: 0.5em; text-align: justify; }
+        strong { font-weight: bold; }
+        ul { margin-left: 1.5em; margin-bottom: 0.5em; }
+        li { margin-bottom: 0.3em; }
+        table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; }
+        thead { background-color: #f2f2f2; }
+        .section-title { margin-top: 1.5em; border-bottom: 1px solid #ccc; padding-bottom: 0.5em; }
+        .page-break { page-break-before: always; } /* Força quebra de página */
+        .center { text-align: center; }
+        .right { text-align: right; }
+    </style>
+</head>
+<body>
+    <div class="header" style="text-align: center; margin-bottom: 2em;">
+        <p style="font-size: 14pt; font-weight: bold;">[Nome do Órgão Público]</p>
+        <p style="font-size: 12pt;">Departamento de Gestão de Contratações</p>
+        <p style="font-size: 10pt;">Termo de Referência</p>
+    </div>
+
+    <h1>{{ tr.titulo }}</h1>
+    <p class="center">Processo Administrativo: <strong>{{ tr.numero_processo }}</strong></p>
+    <p class="center">Data de Emissão: {{ tr.data_criacao|date:"d/m/Y" }}</p>
+    <p class="center">Elaborado por: {{ tr.autor.get_full_name|default:tr.autor.username }}</p>
+
+    <h2 class="section-title">1. Objeto</h2>
+    <p>{{ tr.objeto|safe|linebreaksbr }}</p>
+
+    <h2 class="section-title">2. Justificativa</h2>
+    <p>{{ tr.justificativa|safe|linebreaksbr }}</p>
+
+    <h2 class="section-title">3. Especificações Técnicas do Objeto</h2>
+    <p>{{ tr.especificacoes_tecnicas|safe|linebreaksbr }}</p>
+
+    {% if tr.metodologia_execucao %}
+        <h2 class="section-title">4. Metodologia de Execução (se serviço)</h2>
+        <p>{{ tr.metodologia_execucao|safe|linebreaksbr }}</p>
+    {% endif %}
+
+    <h2 class="section-title">5. Prazo de Execução/Entrega</h2>
+    <p>{{ tr.prazo_execucao_entrega|safe|linebreaksbr }}</p>
+
+    {% if tr.cronograma_fisico_financeiro %}
+        <h2 class="section-title">6. Cronograma Físico-Financeiro (se aplicável)</h2>
+        <p>{{ tr.cronograma_fisico_financeiro|safe|linebreaksbr }}</p>
+    {% endif %}
+
+    <h2 class="section-title">7. Critérios de Habilitação (Técnica)</h2>
+    <p>{{ tr.criterios_habilitacao|safe|linebreaksbr }}</p>
+
+    <h2 class="section-title">8. Critérios de Aceitação do Objeto</h2>
+    <p>{{ tr.criterios_aceitacao|safe|linebreaksbr }}</p>
+
+    <h2 class="section-title">9. Critérios de Pagamento</h2>
+    <p>{{ tr.criterios_pagamento|safe|linebreaksbr }}</p>
+
+    <h2 class="section-title">10. Obrigações da Contratada e da Contratante</h2>
+    <p>{{ tr.obrigacoes_partes|safe|linebreaksbr }}</p>
+
+    <h2 class="section-title">11. Sanções Administrativas</h2>
+    <p>{{ tr.sancoes_administrativas|safe|linebreaksbr }}</p>
+
+    <h2 class="section-title">12. Fiscalização do Contrato</h2>
+    <p>{{ tr.fiscalizacao_contrato|safe|linebreaksbr }}</p>
+
+    <h2 class="section-title">13. Vigência do Contrato</h2>
+    <p>{{ tr.vigencia_contrato|safe|linebreaksbr }}</p>
+
+    <h2 class="section-title">14. Estimativa de Preço (R$)</h2>
+    <p>R$ {{ tr.estimativa_preco_tr|floatformat:2 }}</p>
+
+    {% if tr.observacoes_analise %}
+        <h2 class="section-title">Observações da Análise</h2>
+        <p>{{ tr.observacoes_analise|safe|linebreaksbr }}</p>
+    {% endif %}
+
+    {# Adicionar espaço para assinaturas se necessário #}
+    <div style="margin-top: 3em; text-align: center;">
+        <p>_____________________________________</p>
+        <p>[Nome do Aprovador]</p>
+        <p>[Cargo do Aprovador]</p>
+    </div>
+</body>
+</html>

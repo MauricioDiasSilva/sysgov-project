@@ -1,0 +1,336 @@
+# SysGov_Project/licitacoes/views.py
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib import messages
+from django.forms import inlineformset_factory # Para formsets
+from django.db import transaction # Para transações atômicas
+from django.db.models import Q # Para queries complexas (se for usar)
+from django.utils import timezone # Para campos de data/hora
+
+# Importar os modelos da sua própria app 'licitacoes'
+from .models import (
+    Edital, Lote, ItemLicitado, ResultadoLicitacao, # EditalPublicacao e EditalItem REMOVIDOS
+    # Importar os CHOICES definidos nos modelos para usar nas views
+    STATUS_EDITAL_CHOICES,
+    TIPO_INSTRUMENTO_CONVOCATORIO_CHOICES, MODALIDADE_LICITACAO_CHOICES, MODO_DISPUTA_CHOICES,
+    VEICULO_PUBLICACAO_CHOICES, TIPO_BENEFICIO_CHOICES, CRITERIO_JULGAMENTO_CHOICES, ITEM_CATEGORIA_CHOICES
+)
+
+# Importar os formulários da sua própria app 'licitacoes'
+from .forms import (
+    EditalForm, LoteForm, ItemLicitadoForm, ResultadoLicitacaoForm,
+    # Novos formulários de Edital para o AUDESP (se você os tiver definido)
+    # EditalLicitacaoForm, EditalPublicacaoForm, EditalItemForm, # REMOVIDOS
+    # EditalPublicacaoFormSet, EditalItemFormSet # REMOVIDOS
+)
+
+# Importar o modelo Processo do app 'core' se as views de Edital o vinculam
+from core.models import Processo
+
+
+# Formsets para Lotes e Itens (usados nas views de Edital)
+LoteFormSet = inlineformset_factory(Edital, Lote, form=LoteForm, extra=1, can_delete=True)
+ItemLicitadoFormSet = inlineformset_factory(Edital, ItemLicitado, form=ItemLicitadoForm, extra=1, can_delete=True)
+# Se você tiver itens dentro de lotes, precisaria de um formset aninhado ou outra abordagem
+
+
+# --- VIEWS PARA EDITAL ---
+
+@login_required
+def listar_editais(request):
+    editais = Edital.objects.all().order_by('-data_publicacao')
+    context = {
+        'editais': editais,
+        'titulo_pagina': 'Lista de Editais de Licitação',
+    }
+    return render(request, 'licitacoes/listar_editais.html', context)
+
+
+@login_required
+def criar_edital(request, processo_id=None):
+    processo_core = None
+    if processo_id:
+        processo_core = get_object_or_404(Processo, id=processo_id)
+        # Opcional: Se já existe um Edital vinculado a este Processo, redirecione para editá-lo
+        if hasattr(processo_core, 'edital_licitacao'):
+            messages.info(request, "Este processo já possui um Edital. Você será redirecionado para editá-lo.")
+            return redirect('licitacoes:editar_edital', pk=processo_core.edital_licitacao.pk)
+
+    if request.method == 'POST':
+        form = EditalForm(request.POST) # Usando o EditalForm original
+        # Se você quiser usar os novos forms do AUDESP, mude para EditalLicitacaoForm
+        # form = EditalLicitacaoForm(request.POST)
+
+        lotes_formset = LoteFormSet(request.POST, prefix='lotes')
+        itens_formset = ItemLicitadoFormSet(request.POST, prefix='itens')
+
+        if form.is_valid() and lotes_formset.is_valid() and itens_formset.is_valid():
+            try:
+                with transaction.atomic():
+                    edital = form.save(commit=False)
+                    edital.responsavel_publicacao = request.user
+                    if processo_core:
+                        edital.processo_vinculado = processo_core
+                    edital.save()
+
+                    lotes_formset.instance = edital
+                    lotes_formset.save()
+
+                    itens_formset.instance = edital
+                    itens_formset.save()
+
+                messages.success(request, 'Edital criado com sucesso!')
+                if processo_core:
+                    return redirect('detalhes_processo', processo_id=processo_core.id)
+                else:
+                    return redirect('licitacoes:detalhar_edital', pk=edital.pk)
+
+            except Exception as e:
+                messages.error(request, f"Não foi possível salvar o Edital devido a um erro inesperado: {e}")
+                print(f"Erro no salvamento do Edital (bloco try/except): {e}")
+        else:
+            messages.error(request, 'Erro ao criar Edital. Verifique os campos.')
+            print("====================================")
+            print("ERRO DE VALIDAÇÃO DO FORMULÁRIO EDITAL:")
+            print("Erros do formulário principal (Edital):", form.errors)
+            print("Erros não-campo do formulário principal (Edital):", form.non_field_errors)
+            print("Erros do formset de Lotes:", lotes_formset.errors)
+            print("Erros do formset de Itens:", itens_formset.errors)
+            print("====================================")
+    else: # GET request
+        initial_data = {}
+        if processo_core:
+            initial_data['numero_processo_origem'] = processo_core.numero_protocolo
+
+        form = EditalForm(initial=initial_data) # Usando o EditalForm original
+        # Se você quiser usar os novos forms do AUDESP, mude para EditalLicitacaoForm
+        # form = EditalLicitacaoForm(initial=initial_data)
+
+        lotes_formset = LoteFormSet(prefix='lotes')
+        itens_formset = ItemLicitadoFormSet(prefix='itens')
+
+    context = {
+        'form': form,
+        'lotes_formset': lotes_formset,
+        'itens_formset': itens_formset,
+        'processo_core': processo_core,
+        'titulo_pagina': f'Criar Edital para Processo: {processo_core.titulo}' if processo_core else 'Criar Novo Edital'
+    }
+    return render(request, 'licitacoes/criar_edital.html', context)
+
+
+@login_required
+def editar_edital(request, pk):
+    edital = get_object_or_404(Edital, pk=pk)
+
+    # Lógica de permissão/status de edição (similar ao ETP)
+    # if edital.autor != request.user and not request.user.is_superuser:
+    #   messages.error(request, 'Você não tem permissão para editar este Edital.')
+    #   return redirect('licitacoes:detalhar_edital', pk=edital.pk)
+    # if edital.status in ['HOMOLOGADO', 'CANCELADO', 'FRACASSADO'] and not request.user.is_superuser:
+    #   messages.warning(request, 'Este Edital está em status final. Edições são limitadas.')
+    #   if request.method == 'POST':
+    #       messages.error(request, 'Não é possível editar Edital em status final.')
+    #       return redirect('licitacoes:detalhar_edital', pk=edital.pk)
+
+    if request.method == 'POST':
+        form = EditalForm(request.POST, instance=edital) # Usando o EditalForm original
+        # Se você quiser usar os novos forms do AUDESP, mude para EditalLicitacaoForm
+        # form = EditalLicitacaoForm(request.POST, instance=edital)
+
+        lotes_formset = LoteFormSet(request.POST, instance=edital, prefix='lotes')
+        itens_formset = ItemLicitadoFormSet(request.POST, instance=edital, prefix='itens')
+
+        if form.is_valid() and lotes_formset.is_valid() and itens_formset.is_valid():
+            try:
+                with transaction.atomic():
+                    edital = form.save()
+                    lotes_formset.instance = edital
+                    lotes_formset.save()
+                    itens_formset.instance = edital
+                    itens_formset.save()
+                messages.success(request, 'Edital atualizado com sucesso!')
+                return redirect('licitacoes:detalhar_edital', pk=edital.pk)
+            except Exception as e:
+                messages.error(request, f"Não foi possível atualizar o Edital devido a um erro inesperado: {e}")
+                print(f"Erro na atualização do Edital (bloco try/except): {e}")
+        else:
+            messages.error(request, 'Erro ao atualizar Edital. Verifique os campos.')
+            print("====================================")
+            print("ERRO DE VALIDAÇÃO DO FORMULÁRIO EDITAL (EDIÇÃO):")
+            print("Erros do formulário principal (Edital):", form.errors)
+            print("Erros não-campo do formulário principal (Edital):", form.non_field_errors)
+            print("Erros do formset de Lotes:", lotes_formset.errors)
+            print("Erros do formset de Itens:", itens_formset.errors)
+            print("====================================")
+    else: # GET request
+        form = EditalForm(instance=edital) # Usando o EditalForm original
+        # Se você quiser usar os novos forms do AUDESP, mude para EditalLicitacaoForm
+        # form = EditalLicitacaoForm(instance=edital)
+
+        lotes_formset = LoteFormSet(instance=edital, prefix='lotes')
+        itens_formset = ItemLicitadoFormSet(instance=edital, prefix='itens')
+
+    context = {
+        'form': form,
+        'lotes_formset': lotes_formset,
+        'itens_formset': itens_formset,
+        'edital': edital,
+        'titulo_pagina': f'Editar Edital: {edital.numero_edital}'
+    }
+    return render(request, 'licitacoes/editar_edital.html', context)
+
+
+@login_required
+def detalhar_edital(request, pk):
+    edital = get_object_or_404(Edital, pk=pk)
+    context = {
+        'edital': edital,
+        'titulo_pagina': f'Detalhes do Edital: {edital.numero_edital}'
+    }
+    return render(request, 'licitacoes/detalhar_edital.html', context)
+
+# Você pode ter outras views para Lote, ItemLicitado, ResultadoLicitacao aqui.
+
+# Nova view para o dashboard de licitações
+@login_required
+def licitacoes_dashboard(request):
+    total_editais = Edital.objects.count()
+    editais_publicados = Edital.objects.filter(status='PUBLICADO').count()
+    editais_abertos = Edital.objects.filter(status='ABERTO').count()
+    # Adicione mais contagens conforme os status do seu modelo Edital
+
+    context = {
+        'total_editais': total_editais,
+        'editais_publicados': editais_publicados,
+        'editais_abertos': editais_abertos,
+        'titulo_pagina': 'Dashboard de Licitações',
+    }
+    return render(request, 'licitacoes/dashboard_licitacoes.html', context)
+
+
+# <<< NOVAS VIEWS PARA RESULTADO DA LICITAÇÃO >>>
+@login_required
+def registrar_resultado_licitacao(request, edital_pk):
+    edital = get_object_or_404(Edital, pk=edital_pk)
+
+    # Opcional: Verificar se já existe um resultado para este edital (ou lote/item)
+    # Se você espera apenas um resultado por edital, pode redirecionar para edição.
+    # Ex: if ResultadoLicitacao.objects.filter(edital=edital).exists():
+    #        messages.info(request, "Este edital já possui um resultado registrado.")
+    #        return redirect('licitacoes:detalhar_resultado_licitacao', pk=resultado_existente.pk)
+
+    if request.method == 'POST':
+        form = ResultadoLicitacaoForm(request.POST)
+        if form.is_valid():
+            resultado = form.save(commit=False)
+            resultado.edital = edital
+            resultado.responsavel_registro = request.user # Associa o usuário logado
+            resultado.save()
+            messages.success(request, 'Resultado da Licitação registrado com sucesso!')
+            return redirect('licitacoes:detalhar_resultado_licitacao', pk=resultado.pk)
+        else:
+            messages.error(request, 'Erro ao registrar Resultado da Licitação. Verifique os campos.')
+            print("Erros do formulário ResultadoLicitacao:", form.errors)
+    else:
+        # Passar a instância do Edital para o formulário ResultadoLicitacaoForm
+        # para que o queryset de lote/item possa ser filtrado dinamicamente no __init__ do form.
+        form = ResultadoLicitacaoForm(edital_instance=edital)
+
+    context = {
+        'form': form,
+        'edital': edital,
+        'titulo_pagina': f'Registrar Resultado para Edital: {edital.numero_edital}',
+    }
+    return render(request, 'licitacoes/registrar_resultado_licitacao.html', context)
+
+@login_required
+def detalhar_resultado_licitacao(request, pk):
+    resultado = get_object_or_404(ResultadoLicitacao, pk=pk)
+    # Opcional: Verificação de permissão do usuário para ver o resultado,
+    # pode ser via edital.processo_vinculado.usuario ou outras regras.
+    # if resultado.edital.processo_vinculado.usuario != request.user and not request.user.is_superuser:
+    #     messages.error(request, "Você não tem permissão para visualizar este resultado.")
+    #     return redirect('licitacoes:dashboard_licitacoes') # Ou uma página de erro
+
+    context = {
+        'resultado': resultado,
+        'titulo_pagina': f'Detalhes do Resultado: {resultado.edital.numero_edital}',
+    }
+    return render(request, 'licitacoes/detalhar_resultado_licitacao.html', context)
+
+@login_required
+def listar_resultados_licitacao(request):
+    resultados = ResultadoLicitacao.objects.all().order_by('-data_homologacao')
+    context = {
+        'resultados': resultados,
+        'titulo_pagina': 'Lista de Resultados de Licitação',
+    }
+    return render(request, 'licitacoes/listar_resultados_licitacao.html', context)
+
+# SysGov_Project/licitacoes/views.py
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib import messages
+from .models import Edital, ResultadoLicitacao # Importe o modelo ResultadoLicitacao
+from .forms import EditalForm, ResultadoLicitacaoForm # Importe o formulário ResultadoLicitacaoForm
+
+# ... (todas as suas views existentes) ...
+
+# --- NOVA VIEW PARA EDITAR O RESULTADO DA LICITAÇÃO ---
+@login_required
+@permission_required('licitacoes.change_resultadolicitacao', raise_exception=True)
+def editar_resultado_licitacao(request, pk):
+    resultado = get_object_or_404(ResultadoLicitacao, pk=pk)
+
+    # Opcional: Adicione verificação de permissão se o usuário é o autor do edital ou superusuário
+    if resultado.edital.responsavel_publicacao != request.user and not request.user.is_superuser:
+        messages.error(request, 'Você não tem permissão para editar este Resultado da Licitação.')
+        return redirect('licitacoes:detalhar_resultado_licitacao', pk=resultado.pk)
+
+    if request.method == 'POST':
+        form = ResultadoLicitacaoForm(request.POST, instance=resultado)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Resultado da Licitação atualizado com sucesso!')
+            return redirect('licitacoes:detalhar_resultado_licitacao', pk=resultado.pk)
+        else:
+            messages.error(request, 'Erro ao atualizar Resultado da Licitação. Verifique os campos.')
+    else:
+        form = ResultadoLicitacaoForm(instance=resultado)
+
+    context = {
+        'form': form,
+        'resultado': resultado,
+        'titulo_pagina': f'Editar Resultado da Licitação: {resultado.edital.numero_edital}'
+    }
+    return render(request, 'licitacoes/editar_resultado_licitacao.html', context)
+
+
+# SysGov_Project/licitacoes/views.py
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+# ... (outros imports) ...
+
+# ... (suas views existentes) ...
+
+@login_required # Apenas usuários logados podem ver esta página
+def detalhar_edital(request, pk):
+    edital = get_object_or_404(Edital, pk=pk)
+
+    # NOVO: Variável de contexto para permissão
+    # Verifique se o usuário logado tem a permissão para gerar o JSON do AUDESP
+    pode_gerar_json_audesp = request.user.has_perm('financeiro.add_documentofiscal') or request.user.is_superuser
+    # Usamos 'add_documentofiscal' por enquanto, mas pode ser uma permissão mais específica.
+
+    context = {
+        'edital': edital,
+        'titulo_pagina': f'Detalhes do Edital {edital.numero_edital}',
+        'pode_gerar_json_audesp': pode_gerar_json_audesp, # <<< PASSE ESTA VARIÁVEL
+        # ... (outras variáveis de contexto se houver) ...
+    }
+    return render(request, 'licitacoes/detalhar_edital.html', context)

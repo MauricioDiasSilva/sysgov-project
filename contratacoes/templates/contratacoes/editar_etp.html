@@ -1,0 +1,45 @@
+{# contratacoes/templates/contratacoes/editar_tr.html #}
+
+{% extends 'base.html' %}
+
+{% block title %}Editar TR - {{ tr.titulo }}{% endblock %}
+{% block main_title %}Editar Termo de Referência: {{ tr.titulo }}{% endblock %}
+
+{% block content %}
+    <form method="post">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="errorlist">
+                {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {# Lembre-se de não renderizar o campo etp_origem, pois ele é fixo #}
+        {% for field in form %}
+            {% if field.name == 'etp_origem' %}
+                {{ field.as_hidden }}
+            {% else %}
+                <div class="form-group">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {% if field.errors %}
+                        <ul class="errorlist">
+                            {% for error in field.errors %}
+                                <li>{{ error }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                    {% if field.help_text %}
+                        <span class="helptext">{{ field.help_text }}</span>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endfor %}
+
+        <button type="submit" class="button">Salvar Alterações</button>
+        <a href="{% url 'contratacoes:detalhar_etp' pk=etp.pk %}" class="button" style="background-color: #6c757d;">Cancelar</a> {# CORRIGIDO AQUI! #}
+    </form>
+{% endblock %}
