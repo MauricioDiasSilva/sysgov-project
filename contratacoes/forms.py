@@ -1,10 +1,10 @@
 # contratacoes/forms.py
 
 from django import forms
-from django.forms import inlineformset_factory
+from django.core.exceptions import ValidationError
 from .models import (
     ETP, TR, PCA, ItemPCA, PesquisaPreco, ParecerTecnico,
-    ItemCatalogo, RequisitoPadrao # Modelos que você já tinha
+    ItemCatalogo, RequisitoPadrao
 )
 from ckeditor.widgets import CKEditorWidget
 
@@ -13,9 +13,9 @@ class ItemCatalogoForm(forms.ModelForm):
         model = ItemCatalogo
         fields = ['nome_padronizado', 'descricao_tecnica', 'unidade_medida', 'preco_historico_medio']
         widgets = {
-            'nome_padronizado': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome padronizado do bem ou serviço'}),
-            'descricao_tecnica': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Especificações técnicas detalhadas...'}),
-            'unidade_medida': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: UN, KG, SERVICO'}),
+            'nome_padronizado': forms.TextInput(attrs={'class': 'form-control'}),
+            'descricao_tecnica': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+            'unidade_medida': forms.TextInput(attrs={'class': 'form-control'}),
             'preco_historico_medio': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
         }
         labels = {
@@ -25,57 +25,66 @@ class ItemCatalogoForm(forms.ModelForm):
             'preco_historico_medio': 'Preço Histórico Médio (R$)',
         }
 
-        
-# 1. Formulário para Parecer Técnico
 class ParecerTecnicoForm(forms.ModelForm):
     class Meta:
         model = ParecerTecnico
-        fields = '__all__'
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field_name, field in self.fields.items():
-            if isinstance(field.widget, (forms.TextInput, forms.Textarea, forms.Select, forms.DateInput, forms.NumberInput, forms.EmailInput, forms.URLInput)):
-                field.widget.attrs.update({'class': 'form-control'})
+        fields = ['conteudo', 'autor'] # Trocado '__all__' por campos explícitos
 
 
+# SUBSTITUA A SUA CLASSE DE PESQUISA DE PREÇO POR ESTA:
 class PesquisaPrecoForm(forms.ModelForm):
     class Meta:
         model = PesquisaPreco
-        fields = '__all__' 
+        fields = ['fornecedor', 'valor_cotado', 'data_pesquisa']
         widgets = {
-            'data_pesquisa': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'data_pesquisa': forms.DateInput(attrs={'type': 'date'}),
         }
         labels = {
+            'fornecedor': 'Fornecedor / Fonte da Pesquisa',
+            'valor_cotado': 'Valor Cotado (R$)',
             'data_pesquisa': 'Data da Pesquisa',
         }
 
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        # Esta lógica verifica se o usuário digitou qualquer coisa no formulário.
+        has_data = any(cleaned_data.get(field) for field in self.fields if field != 'DELETE')
+        
+        # Se não há dados, o Django pode ignorar este formulário em branco.
+        if not has_data:
+            return cleaned_data
 
-# 3. Formulário para ETP (principal)
+        # Se houver qualquer dado, então todos os campos se tornam obrigatórios.
+        errors = {}
+        if not cleaned_data.get('fornecedor'):
+            errors['fornecedor'] = 'Este campo é obrigatório se a linha for preenchida.'
+        if not cleaned_data.get('valor_cotado'):
+            errors['valor_cotado'] = 'Este campo é obrigatório se a linha for preenchida.'
+        if not cleaned_data.get('data_pesquisa'):
+            errors['data_pesquisa'] = 'Este campo é obrigatório se a linha for preenchida.'
+
+        if errors:
+            raise ValidationError(errors)
+
+        return cleaned_data
+
 class ETPForm(forms.ModelForm):
     class Meta:
         model = ETP
         fields = [
-            'titulo',
-            'numero_processo',
-            'setor_demandante',
-            'item_pca_vinculado',
-            'descricao_necessidade',
-            'objetivo_contratacao',
-            'requisitos_contratacao',
-            'levantamento_solucoes_mercado',
-            'estimativa_quantidades',
-            'estimativa_valor',
-            'resultados_esperados',
-            'viabilidade_justificativa_solucao',
-            'contratacoes_correlatas',
-            'alinhamento_planejamento',
+            'titulo', 'numero_processo', 'setor_demandante', 'item_pca_vinculado',
+            'descricao_necessidade', 'objetivo_contratacao', 'requisitos_contratacao',
+            'levantamento_solucoes_mercado', 'estimativa_quantidades', 'estimativa_valor',
+            'resultados_esperados', 'viabilidade_justificativa_solucao',
+            'contratacoes_correlatas', 'alinhamento_planejamento',
         ]
+        # Widgets já definem a classe, então o __init__ foi removido por ser redundante.
         widgets = {
             'titulo': forms.TextInput(attrs={'class': 'form-control'}),
             'numero_processo': forms.TextInput(attrs={'class': 'form-control'}),
             'setor_demandante': forms.TextInput(attrs={'class': 'form-control'}),
-            'item_pca_vinculado': forms.Select(attrs={'class': 'form-control'}),
+            'item_pca_vinculado': forms.Select(attrs={'class': 'form-select'}), # form-select é melhor para <select>
             'descricao_necessidade': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
             'objetivo_contratacao': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
             'requisitos_contratacao': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
@@ -91,166 +100,81 @@ class ETPForm(forms.ModelForm):
             'estimativa_valor': 'Estimativa do Valor (R$)',
             'item_pca_vinculado': 'Vincular ao Item do PCA',
         }
-        help_texts = {
-            'estimativa_valor': 'Valor total estimado da contratação, em Reais.',
-            'item_pca_vinculado': 'Selecione o item correspondente no PCA. Se não existir, o ETP poderá ser reprovado.',
-        }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field_name, field in self.fields.items():
-            if field_name not in self.Meta.widgets and isinstance(field.widget, (forms.TextInput, forms.Textarea, forms.Select, forms.DateInput, forms.NumberInput, forms.EmailInput, forms.URLInput)):
-                field.widget.attrs.update({'class': 'form-control'})
-
-
-# 4. Formset para Pesquisas de Preço (usa PesquisaPrecoForm e ETP)
-PesquisaPrecoFormSet = inlineformset_factory(
-    ETP,
-    PesquisaPreco,
-    form=PesquisaPrecoForm,
-    extra=1,
-    can_delete=True
-)
-
-
-# 5. Formulário para Status do ETP
 class ETPStatusForm(forms.ModelForm):
     class Meta:
         model = ETP
         fields = ['status', 'observacoes_analise']
         widgets = {
             'observacoes_analise': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
-            'status': forms.Select(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-select'}), # form-select é melhor
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field_name, field in self.fields.items():
-            if field_name != 'observacoes_analise' and field_name != 'status' and isinstance(field.widget, (forms.TextInput, forms.Textarea, forms.Select, forms.DateInput, forms.NumberInput, forms.EmailInput, forms.URLInput)):
-                field.widget.attrs.update({'class': 'form-control'})
-
-
-# 6. Formulário para TR (Termo de Referência)
 class TRForm(forms.ModelForm):
     class Meta:
         model = TR
-        fields = '__all__'
+        # Trocado '__all__' por campos explícitos para mais segurança e clareza
+        exclude = ['autor', 'data_criacao']
         widgets = {
-            'objeto': CKEditorWidget(attrs={'class': 'form-control'}),
-            'justificativa': CKEditorWidget(attrs={'class': 'form-control'}),
-            'especificacoes_tecnicas': CKEditorWidget(attrs={'class': 'form-control'}),
-            'metodologia_execucao': CKEditorWidget(attrs={'class': 'form-control'}),
-            'cronograma_fisico_financeiro': CKEditorWidget(attrs={'class': 'form-control'}),
-            'criterios_habilitacao': CKEditorWidget(attrs={'class': 'form-control'}),
-            'criterios_aceitacao': CKEditorWidget(attrs={'class': 'form-control'}),
-            'criterios_pagamento': CKEditorWidget(attrs={'class': 'form-control'}),
-            'obrigacoes_partes': CKEditorWidget(attrs={'class': 'form-control'}),
-            'sancoes_administrativas': CKEditorWidget(attrs={'class': 'form-control'}),
-            'fiscalizacao_contrato': CKEditorWidget(attrs={'class': 'form-control'}),
+            'objeto': CKEditorWidget(),
+            'justificativa': CKEditorWidget(),
+            'especificacoes_tecnicas': CKEditorWidget(),
+            'metodologia_execucao': CKEditorWidget(),
+            'cronograma_fisico_financeiro': CKEditorWidget(),
+            'criterios_habilitacao': CKEditorWidget(),
+            'criterios_aceitacao': CKEditorWidget(),
+            'criterios_pagamento': CKEditorWidget(),
+            'obrigacoes_partes': CKEditorWidget(),
+            'sancoes_administrativas': CKEditorWidget(),
+            'fiscalizacao_contrato': CKEditorWidget(),
         }
 
+    # Este __init__ é útil e foi mantido, pois aplica estilo apenas nos campos que não são CKEditor
     def __init__(self, *args, **kwargs):
         self.etp_origem_instance = kwargs.pop('etp_origem', None)
         super().__init__(*args, **kwargs)
-
         for field_name, field in self.fields.items():
-            if not isinstance(field.widget, CKEditorWidget) and isinstance(field.widget, (forms.TextInput, forms.Textarea, forms.Select, forms.DateInput, forms.NumberInput, forms.EmailInput, forms.URLInput)):
+            if not isinstance(field.widget, CKEditorWidget):
                 field.widget.attrs.update({'class': 'form-control'})
+            if isinstance(field.widget, forms.Select):
+                field.widget.attrs.update({'class': 'form-select'})
+
 
     def clean(self):
         cleaned_data = super().clean()
         etp = self.etp_origem_instance 
-
         if etp and etp.requisitos_contratacao and not cleaned_data.get('especificacoes_tecnicas'):
-            self.add_error('especificacoes_tecnicas', 'Campo "Especificações Técnicas" é obrigatório, pois o ETP de origem possui requisitos de contratação.')
-
+            self.add_error('especificacoes_tecnicas', 'Este campo é obrigatório, pois o ETP de origem possui requisitos.')
         return cleaned_data
 
-# 7. Formulário para Anexo
-# class AnexoForm(forms.ModelForm):
-#     class Meta:
-#         model = Anexo
-#         fields = ['titulo', 'arquivo']
-#         widgets = {
-#             'titulo': forms.TextInput(attrs={'class': 'form-control'}),
-#             'arquivo': forms.FileInput(attrs={'class': 'form-control'}),
-#         }
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         for field_name, field in self.fields.items():
-#             if field_name not in self.Meta.widgets and isinstance(field.widget, (forms.TextInput, forms.Textarea, forms.Select, forms.DateInput, forms.NumberInput, forms.EmailInput, forms.URLInput, forms.FileInput)):
-#                 field.widget.attrs.update({'class': 'form-control'})
-
-
-# 8. Formulário para Status do TR
 class TRStatusForm(forms.ModelForm):
     class Meta:
         model = TR
         fields = ['status', 'observacoes_analise']
         widgets = {
             'observacoes_analise': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
-            'status': forms.Select(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field_name, field in self.fields.items():
-            if field_name != 'observacoes_analise' and field_name != 'status' and isinstance(field.widget, (forms.TextInput, forms.Textarea, forms.Select, forms.DateInput, forms.NumberInput, forms.EmailInput, forms.URLInput)):
-                field.widget.attrs.update({'class': 'form-control'})
-
-# --- Formulários para PCA e ItemPCA (pertencem a 'contratacoes') ---
-
-# 9. Formulário para PCA
 class PCAForm(forms.ModelForm):
     class Meta:
         model = PCA
-        fields = ['ano_vigencia', 'titulo', 'descricao', 'data_aprovacao', 'responsavel_aprovacao', 'arquivo_pca'] 
+        exclude = ['responsavel_aprovacao']
         widgets = {
             'ano_vigencia': forms.NumberInput(attrs={'class': 'form-control'}),
             'titulo': forms.TextInput(attrs={'class': 'form-control'}),
             'descricao': forms.Textarea(attrs={'rows': 4, 'class': 'form-control'}),
             'data_aprovacao': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'responsavel_aprovacao': forms.Select(attrs={'class': 'form-control'}),
             'arquivo_pca': forms.FileInput(attrs={'class': 'form-control'}),
         }
-        labels = {
-            'ano_vigencia': 'Ano de Vigência',
-            'titulo': 'Título do PCA',
-            'descricao': 'Descrição do PCA',
-            'data_aprovacao': 'Data de Aprovação do PCA',
-            'responsavel_aprovacao': 'Responsável pela Aprovação',
-            'arquivo_pca': 'Arquivo PCA Completo (PDF)',
-        }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field_name, field in self.fields.items():
-            if field_name not in self.Meta.widgets and isinstance(field.widget, (forms.TextInput, forms.Textarea, forms.Select, forms.DateInput, forms.NumberInput, forms.EmailInput, forms.URLInput, forms.FileInput)):
-                field.widget.attrs.update({'class': 'form-control'})
-
-# 10. Formulário para ItemPCA
 class ItemPCAForm(forms.ModelForm):
     class Meta:
         model = ItemPCA
-        fields = ['pca', 'identificador_item', 'descricao_item', 'valor_estimado_pca', 'unidade_requisitante'] 
+        exclude = ['pca']
         widgets = {
-            'pca': forms.Select(attrs={'class': 'form-control'}),
             'identificador_item': forms.TextInput(attrs={'class': 'form-control'}),
             'descricao_item': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
             'valor_estimado_pca': forms.NumberInput(attrs={'class': 'form-control'}),
             'unidade_requisitante': forms.TextInput(attrs={'class': 'form-control'}),
         }
-        labels = {
-            'pca': 'Plano de Contratações Anual',
-            'identificador_item': 'Identificador do Item',
-            'descricao_item': 'Descrição do Item',
-            'valor_estimado_pca': 'Valor Estimado no PCA (R$)',
-            'unidade_requisitante': 'Unidade Requisitante',
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field_name, field in self.fields.items():
-            if field_name not in self.Meta.widgets and isinstance(field.widget, (forms.TextInput, forms.Textarea, forms.Select, forms.DateInput, forms.NumberInput, forms.EmailInput, forms.URLInput)):
-                field.widget.attrs.update({'class': 'form-control'})

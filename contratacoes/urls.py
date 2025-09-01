@@ -20,6 +20,7 @@ urlpatterns = [
     path('etps/<int:pk>/pdf/', views.gerar_etp_pdf, name='gerar_etp_pdf'), 
     path('etps/<int:etp_id>/anexos/adicionar/', views.adicionar_anexo_etp, name='adicionar_anexo_etp'),
     path('etps/<int:pk>/gerar-tr/', views.gerar_tr_a_partir_etp, name='gerar_tr_a_partir_etp'),
+    path('etp/assistente-ia/', views.gerar_etp_ia_view, name='gerar_etp_ia'),
 
     # URLs para TRs
     path('trs/', views.listar_trs, name='listar_trs'),

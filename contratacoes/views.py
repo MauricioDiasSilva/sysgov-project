@@ -12,27 +12,26 @@ import json
 # from django.contrib.auth.models import User # Geralmente não necessário se usar settings.AUTH_USER_MODEL
 # from django.conf import settings # Geralmente não necessário diretamente em views, apenas em models ou settings
 from decimal import Decimal # Necessário para cálculos com DecimalField
-
+from . import ai_services
 # Importação crucial do modelo Processo e ArquivoAnexo do app 'core'
 from core.models import Processo, ArquivoAnexo # <<< Importação corrigida para ArquivoAnexo
-
+from django.forms import inlineformset_factory
 # Importar os modelos da sua própria app 'contratacoes'
 from .models import (
     ETP, TR, PCA, ItemPCA, PesquisaPreco, ParecerTecnico,
     ModeloTexto, RequisitoPadrao, ItemCatalogo, STATUS_DOCUMENTO_CHOICES
 )
 
-# Importar os formulários da sua própria app 'contratacoes'
 from .forms import (
     ETPForm, TRForm, PesquisaPrecoForm,
-    ParecerTecnicoForm, ETPStatusForm, PesquisaPrecoFormSet, TRStatusForm,
+    ParecerTecnicoForm, ETPStatusForm, 
+    # PesquisaPrecoFormSet,  <<< REMOVIDO DESTA IMPORTAÇÃO
+    TRStatusForm,
     PCAForm, ItemPCAForm,
-    ItemCatalogoForm # <<< ADICIONE ESTA IMPORTAÇÃO SE NÃO ESTIVER LÁ
+    ItemCatalogoForm
 )
-# Importar o ArquivoAnexoForm do core, já que o Anexo foi removido de contratacoes/models
-# from core.forms import ArquivoAnexoForm # <<< Importação do formulário de anexo correto
 
-# Formsets
+# DEFINIÇÃO DOS FORMSETS - O LUGAR CORRETO É AQUI!
 PesquisaPrecoFormSet = inlineformset_factory(ETP, PesquisaPreco, form=PesquisaPrecoForm, extra=1, can_delete=True)
 ParecerTecnicoFormSet = inlineformset_factory(ETP, ParecerTecnico, form=ParecerTecnicoForm, extra=1, can_delete=True)
 ItemPCAFormSet = inlineformset_factory(PCA, ItemPCA, form=ItemPCAForm, extra=1, can_delete=True)
@@ -103,60 +102,56 @@ def listar_etps(request):
     }
     return render(request, 'contratacoes/listar_etps.html', context)
 
+# SysGov_Project/contratacoes/views.py
+
 @login_required
 def criar_etp(request, processo_id=None):
     processo_core = None
     if processo_id:
         processo_core = get_object_or_404(Processo, id=processo_id)
-        # Opcional: Se já existe um ETP vinculado a este Processo, redirecione para editá-lo
         if hasattr(processo_core, 'etp_documento'):
             messages.info(request, "Este processo já possui um ETP. Você será redirecionado para editá-lo.")
             return redirect('contratacoes:detalhar_etp', pk=processo_core.etp_documento.pk)
 
+    dados_iniciais = request.session.pop('dados_etp_ia', {})
+
     if request.method == 'POST':
         form = ETPForm(request.POST)
+        # <<< CORREÇÃO AQUI: Os formsets agora são criados também no POST >>>
         pesquisas_formset = PesquisaPrecoFormSet(request.POST, prefix='pesquisas')
         pareceres_formset = ParecerTecnicoFormSet(request.POST, prefix='pareceres')
 
         if form.is_valid() and pesquisas_formset.is_valid() and pareceres_formset.is_valid():
-            try:
-                with transaction.atomic(): # Garante que todas as operações sejam atômicas
-                    etp = form.save(commit=False)
-                    etp.autor = request.user
-                    if processo_core:
-                        etp.processo_vinculado = processo_core
-                    etp.save()
+            etp = form.save(commit=False)
+            etp.autor = request.user
+            if processo_core:
+                etp.processo_vinculado = processo_core
+            etp.save()
 
-                    pesquisas_formset.instance = etp
-                    pesquisas_formset.save()
+            pesquisas_formset.instance = etp
+            pesquisas_formset.save()
 
-                    pareceres_formset.instance = etp
-                    pareceres_formset.save()
+            pareceres_formset.instance = etp
+            pareceres_formset.save()
 
-                messages.success(request, 'ETP criado com sucesso!')
-                if processo_core:
-                    return redirect('detalhes_processo', processo_id=processo_core.id)
-                else:
-                    return redirect('contratacoes:detalhar_etp', pk=etp.pk)
-            except Exception as e:
-                messages.error(request, f"Não foi possível salvar o ETP devido a um erro inesperado: {e}")
-                print(f"Erro no salvamento do ETP (bloco try/except): {e}") # Para depuração no console
+            messages.success(request, 'ETP criado com sucesso!')
+            if processo_core:
+                # Corrigindo o redirecionamento para a view do app 'core'
+                return redirect('detalhes_processo', processo_id=processo_core.id)
+            else:
+                return redirect('contratacoes:detalhar_etp', pk=etp.pk)
         else:
             messages.error(request, 'Erro ao criar ETP. Verifique os campos.')
-            print("====================================")
-            print("ERRO DE VALIDAÇÃO DO FORMULÁRIO ETP:")
-            print("Erros do formulário principal (ETP):", form.errors)
-            print("Erros não-campo do formulário principal (ETP):", form.non_field_errors)
+            print("Erros do formulário:", form.errors)
             print("Erros do formset de Pesquisas:", pesquisas_formset.errors)
             print("Erros do formset de Pareceres:", pareceres_formset.errors)
-            print("====================================")
-    else: # GET request
-        initial_data = {}
-        if processo_core:
-            initial_data['numero_processo'] = processo_core.numero_protocolo
-            initial_data['titulo'] = processo_core.titulo
 
-        form = ETPForm(initial=initial_data)
+    else:  # GET request
+        if processo_core:
+            dados_iniciais['numero_processo'] = processo_core.numero_protocolo
+            dados_iniciais['titulo'] = f"ETP para o Processo: {processo_core.titulo}"
+
+        form = ETPForm(initial=dados_iniciais)
         pesquisas_formset = PesquisaPrecoFormSet(prefix='pesquisas')
         pareceres_formset = ParecerTecnicoFormSet(prefix='pareceres')
 
@@ -742,3 +737,57 @@ def gerar_tr_a_partir_etp(request, pk):
         'titulo_pagina': f'Gerar TR a partir do ETP: {etp.titulo}'
     }
     return render(request, 'contratacoes/gerar_tr_a_partir_etp.html', context)
+
+# SysGov_Project/contratacoes/views.py
+# ... (outras importações) ...
+
+@login_required
+def gerar_etp_ia_view(request):
+    rascunho_gerado = None
+    if request.method == 'POST':
+        descricao = request.POST.get('descricao_necessidade')
+        if descricao:
+            rascunho_gerado = ai_services.gerar_rascunho_etp_com_ia(descricao)
+            if "Ocorreu um erro" not in rascunho_gerado:
+                # <<< NOVA LÓGICA AQUI >>>
+                # Usamos o parser para extrair os dados
+                dados_etp_parseados = ai_services.parse_rascunho_etp(rascunho_gerado)
+                # Salvamos os dados na sessão para usar na próxima página
+                request.session['dados_etp_ia'] = dados_etp_parseados
+
+    context = {
+        'rascunho_gerado': rascunho_gerado
+    }
+    return render(request, 'contratacoes/gerar_etp_ia.html', context)
+
+# Substitua a função existente por esta
+def parse_rascunho_etp(rascunho_texto):
+    """
+    Versão Final: Lê o rascunho completo da IA e mapeia para os campos do modelo.
+    """
+    dados_etp = {}
+    padrao = r"\*\*(?:\d+\.\s*)?([^:]+):\*\*\s*(.*?)(?=\n\*\*\s*[\d\w]|\Z)"
+    partes = re.findall(padrao, rascunho_texto, re.DOTALL)
+
+    mapa_campos = {
+        'TÍTULO SUGERIDO': 'titulo',
+        'SETOR DEMANDANTE SUGERIDO': 'setor_demandante',
+        'DESCRIÇÃO DA NECESSIDADE': 'descricao_necessidade',
+        'OBJETIVO DA CONTRATAÇÃO': 'objetivo_contratacao',
+        'REQUISITOS DA CONTRATAÇÃO': 'requisitos_contratacao',
+        'LEVANTAMENTO DE SOLUÇÕES DE MERCADO': 'levantamento_solucoes_mercado',
+        'ESTIMATIVA DAS QUANTIDADES': 'estimativa_quantidades',
+        'ESTIMATIVA DO VALOR DA CONTRATAÇÃO (R$)': 'resultados_esperados',
+        'RESULTADOS ESPERADOS': 'resultados_esperados',
+        'VIABILIDADE E JUSTIFICATIVA DA SOLUÇÃO ESCOLHIDA': 'viabilidade_justificativa_solucao',
+        'ALINHAMENTO COM O PLANEJAMENTO ESTRATÉGICO': 'alinhamento_planejamento', # <<< CAMPO NOVO ADICIONADO
+    }
+
+    for titulo, conteudo in partes:
+        titulo_limpo = titulo.strip().upper()
+        if titulo_limpo in mapa_campos:
+            campo_modelo = mapa_campos[titulo_limpo]
+            if campo_modelo not in dados_etp:
+                dados_etp[campo_modelo] = conteudo.strip()
+
+    return dados_etp
