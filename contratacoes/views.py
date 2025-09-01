@@ -102,7 +102,7 @@ def listar_etps(request):
     }
     return render(request, 'contratacoes/listar_etps.html', context)
 
-# SysGov_Project/contratacoes/views.py
+# Em SysGov_Project/contratacoes/views.py
 
 @login_required
 def criar_etp(request, processo_id=None):
@@ -116,41 +116,56 @@ def criar_etp(request, processo_id=None):
     dados_iniciais = request.session.pop('dados_etp_ia', {})
 
     if request.method == 'POST':
+        print("--- DENTRO DO POST ---") # ESPIÃO 1
         form = ETPForm(request.POST)
-        # <<< CORREÇÃO AQUI: Os formsets agora são criados também no POST >>>
         pesquisas_formset = PesquisaPrecoFormSet(request.POST, prefix='pesquisas')
         pareceres_formset = ParecerTecnicoFormSet(request.POST, prefix='pareceres')
 
-        if form.is_valid() and pesquisas_formset.is_valid() and pareceres_formset.is_valid():
-            etp = form.save(commit=False)
-            etp.autor = request.user
-            if processo_core:
-                etp.processo_vinculado = processo_core
-            etp.save()
+        # Vamos verificar a validade de cada um separadamente
+        form_valido = form.is_valid()
+        pesquisas_valido = pesquisas_formset.is_valid()
+        pareceres_valido = pareceres_formset.is_valid()
 
-            pesquisas_formset.instance = etp
-            pesquisas_formset.save()
+        print(f"Formulário principal é válido? {form_valido}") # ESPIÃO 2
+        print(f"Formset de Pesquisas é válido? {pesquisas_valido}") # ESPIÃO 3
+        print(f"Formset de Pareceres é válido? {pareceres_valido}") # ESPIÃO 4
 
-            pareceres_formset.instance = etp
-            pareceres_formset.save()
+        if not pesquisas_valido:
+            print("--- ERROS NO FORMSET DE PESQUISAS ---") # ESPIÃO 5
+            print(pesquisas_formset.errors)
+            print(pesquisas_formset.non_form_errors())
 
-            messages.success(request, 'ETP criado com sucesso!')
-            if processo_core:
-                # Corrigindo o redirecionamento para a view do app 'core'
-                return redirect('detalhes_processo', processo_id=processo_core.id)
-            else:
-                return redirect('contratacoes:detalhar_etp', pk=etp.pk)
+
+        if form_valido and pesquisas_valido and pareceres_valido:
+            print("--- TUDO VÁLIDO, TENTANDO SALVAR ---") # ESPIÃO 6
+            try:
+                with transaction.atomic():
+                    etp = form.save(commit=False)
+                    etp.autor = request.user
+                    if processo_core:
+                        etp.processo_vinculado = processo_core
+                    etp.save()
+                    print("--- ETP PRINCIPAL SALVO COM SUCESSO ---") # ESPIÃO 7
+
+                    pesquisas_formset.instance = etp
+                    pesquisas_formset.save()
+                    print("--- FORMSET DE PESQUISAS SALVO COM SUCESSO ---") # ESPIÃO 8
+
+                    pareceres_formset.instance = etp
+                    pareceres_formset.save()
+
+                    messages.success(request, 'ETP criado com sucesso!')
+                    if processo_core:
+                        return redirect('detalhes_processo', processo_id=processo_core.id)
+                    else:
+                        return redirect('contratacoes:detalhar_etp', pk=etp.pk)
+            except Exception as e:
+                messages.error(request, f"Ocorreu um erro inesperado: {e}")
+
         else:
-            messages.error(request, 'Erro ao criar ETP. Verifique os campos.')
-            print("Erros do formulário:", form.errors)
-            print("Erros do formset de Pesquisas:", pesquisas_formset.errors)
-            print("Erros do formset de Pareceres:", pareceres_formset.errors)
+            messages.error(request, 'Erro de validação. Verifique os campos.')
 
     else:  # GET request
-        if processo_core:
-            dados_iniciais['numero_processo'] = processo_core.numero_protocolo
-            dados_iniciais['titulo'] = f"ETP para o Processo: {processo_core.titulo}"
-
         form = ETPForm(initial=dados_iniciais)
         pesquisas_formset = PesquisaPrecoFormSet(prefix='pesquisas')
         pareceres_formset = ParecerTecnicoFormSet(prefix='pareceres')
@@ -160,10 +175,9 @@ def criar_etp(request, processo_id=None):
         'pesquisas_formset': pesquisas_formset,
         'pareceres_formset': pareceres_formset,
         'processo_core': processo_core,
-        'titulo_pagina': f'Criar ETP para Processo: {processo_core.titulo}' if processo_core else 'Criar Novo ETP',
+        'titulo_pagina': 'Criar Novo ETP',
     }
     return render(request, 'contratacoes/criar_etp.html', context)
-
 
 @login_required
 def detalhar_etp(request, pk):

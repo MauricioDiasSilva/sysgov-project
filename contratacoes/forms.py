@@ -25,11 +25,45 @@ class ItemCatalogoForm(forms.ModelForm):
             'preco_historico_medio': 'Preço Histórico Médio (R$)',
         }
 
+# Em SysGov_Project/contratacoes/forms.py
+
+# ... (outras importações e forms) ...
+
 class ParecerTecnicoForm(forms.ModelForm):
     class Meta:
         model = ParecerTecnico
-        fields = ['conteudo', 'autor'] # Trocado '__all__' por campos explícitos
+        # Definimos os campos explicitamente para ter mais controle
+        fields = ['conteudo', 'autor']
 
+    # Este __init__ é útil para aplicar a classe CSS em todos os campos
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name, field in self.fields.items():
+            field.widget.attrs.update({'class': 'form-control'})
+            if isinstance(field.widget, forms.Textarea):
+                field.widget.attrs.update({'rows': '3'})
+    
+    # Adicionamos a mesma lógica clean para ignorar formulários em branco
+    def clean(self):
+        cleaned_data = super().clean()
+        
+        # Verifica se o usuário preencheu algum campo neste formulário de parecer
+        has_data = any(cleaned_data.get(field) for field in self.fields if field != 'DELETE')
+
+        if not has_data:
+            return cleaned_data # Ignora o formulário se estiver vazio
+
+        # Se começou a preencher, torna os campos obrigatórios
+        errors = {}
+        if not cleaned_data.get('conteudo'):
+            errors['conteudo'] = 'O conteúdo do parecer é obrigatório se a linha for preenchida.'
+        if not cleaned_data.get('autor'):
+            errors['autor'] = 'O autor do parecer é obrigatório se a linha for preenchida.'
+            
+        if errors:
+            raise ValidationError(errors)
+            
+        return cleaned_data
 
 # SUBSTITUA A SUA CLASSE DE PESQUISA DE PREÇO POR ESTA:
 class PesquisaPrecoForm(forms.ModelForm):
