@@ -15,18 +15,10 @@ from django.core.serializers import serialize
 import json
 from django.contrib.auth.models import User
 from django.conf import settings 
-
-# Importação crucial do modelo Processo do app 'core' para vinculação
+from contratacoes.models import Contrato 
 from core.models import Processo
-
-# IMPORTAÇÃO CRUCIAL do modelo Processo do app 'core' para vinculação
-from core.models import Processo # <<< Esta linha está correta para a estrutura de apps irmãos
-
-# --- Importações dos modelos do PRÓPRIO app 'financeiro' ---
-from .models import DocumentoFiscal, Pagamento # <<< APENAS SEUS MODELOS DE FINANCEIRO
-
-# --- Importações dos formulários do PRÓPRIO app 'financeiro' ---
-from .forms import DocumentoFiscalForm, PagamentoForm # <<< APENAS SEUS FORMULÁRIOS DE FINANCEIRO
+from .models import DocumentoFiscal, Pagamento 
+from .forms import DocumentoFiscalForm, PagamentoForm,NotaEmpenhoForm 
 
 # --- Views de Dashboard e Listagens ---
 @login_required
@@ -353,3 +345,85 @@ def editar_pagamento(request, pk):
         'titulo_pagina': f'Editar Pagamento: {pagamento.documento_fiscal_numero}'
     }
     return render(request, 'financeiro/editar_pagamento.html', context)
+
+
+
+# Em financeiro/views.py
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from .forms import NotaEmpenhoForm # Crie ou adicione a esta importação
+from contratacoes.models import Contrato # Precisamos do modelo Contrato
+
+# ... (suas outras views de financeiro) ...
+
+@login_required
+def criar_empenho(request, contrato_id):
+    contrato = get_object_or_404(Contrato, pk=contrato_id)
+    
+    if request.method == 'POST':
+        form = NotaEmpenhoForm(request.POST)
+        if form.is_valid():
+            empenho = form.save(commit=False)
+            empenho.contrato = contrato
+            empenho.fornecedor = contrato.contratado # Puxa o fornecedor diretamente do contrato
+            empenho.save()
+            messages.success(request, f"Nota de Empenho {empenho.numero_empenho}/{empenho.ano_empenho} criada com sucesso!")
+            return redirect('contratacoes:detalhar_contrato', pk=contrato.pk) # Volta para os detalhes do contrato
+    else:
+        form = NotaEmpenhoForm()
+        
+    context = {
+        'form': form,
+        'contrato': contrato,
+        'titulo_pagina': f'Adicionar Empenho ao Contrato {contrato.numero_contrato}/{contrato.ano_contrato}'
+    }
+    return render(request, 'financeiro/criar_empenho.html', context)
+
+# Em financeiro/views.py
+from .models import NotaEmpenho # Adicione esta importação
+
+# ...
+
+@login_required
+def listar_empenhos(request):
+    empenhos = NotaEmpenho.objects.all().order_by('-data_emissao')
+    context = {
+        'empenhos': empenhos,
+        'titulo_pagina': 'Notas de Empenho Emitidas'
+    }
+    return render(request, 'financeiro/listar_empenhos.html', context)
+
+# Em financeiro/views.py
+
+@login_required
+def detalhar_empenho(request, pk):
+    empenho = get_object_or_404(NotaEmpenho, pk=pk)
+    context = {
+        'empenho': empenho,
+        'titulo_pagina': f'Detalhes do Empenho {empenho.numero_empenho}/{empenho.ano_empenho}'
+    }
+    return render(request, 'financeiro/detalhar_empenho.html', context)
+
+# Em financeiro/views.py
+
+@login_required
+def editar_empenho(request, pk):
+    empenho = get_object_or_404(NotaEmpenho, pk=pk)
+    
+    if request.method == 'POST':
+        form = NotaEmpenhoForm(request.POST, instance=empenho)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Nota de Empenho atualizada com sucesso!')
+            return redirect('financeiro:detalhar_empenho', pk=empenho.pk)
+    else:
+        form = NotaEmpenhoForm(instance=empenho)
+        
+    context = {
+        'form': form,
+        'empenho': empenho,
+        'titulo_pagina': f'Editar Empenho {empenho.numero_empenho}/{empenho.ano_empenho}'
+    }
+    return render(request, 'financeiro/editar_empenho.html', context)

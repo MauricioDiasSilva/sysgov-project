@@ -4,8 +4,8 @@ from django.db import models
 from django.conf import settings # Para referenciar o modelo de usuário do Django
 from decimal import Decimal
 from django.utils.translation import gettext_lazy as _
-from core.models import Processo, ArquivoAnexo# <<< ATUALIZADO: Importa ArquivoAnexo do core
-
+from core.models import Processo, ArquivoAnexo, Fornecedor
+from licitacoes.models import Edital
 # --- Definição dos status possíveis para documentos ---
 STATUS_DOCUMENTO_CHOICES = [
     ('EM_ELABORACAO', 'Em Elaboração'),
@@ -128,6 +128,14 @@ class ETP(models.Model):
         blank=True,
         verbose_name="Anexos do ETP"
     )
+
+    permissions = [
+                ("pode_submeter_etp_analise", "Pode submeter ETP para análise de requerimentos"),
+                ("pode_aprovar_etp_analise", "Pode aprovar ETP pela Análise de Requerimentos"),
+                ("pode_recusar_etp_analise", "Pode recusar ETP pela Análise de Requerimentos"),
+                ("pode_aprovar_etp_orcamento", "Pode aprovar ETP pelo Setor de Orçamento"),
+                ("pode_recusar_etp_orcamento", "Pode recusar ETP pelo Setor de Orçamento"),
+            ]
 
     class Meta:
         verbose_name = "Estudo Técnico Preliminar (ETP)"
@@ -505,3 +513,77 @@ class RequisitoPadrao(models.Model):
 
     def __str__(self):
         return f"{self.codigo} - {self.titulo}"
+    
+
+    # Em SysGov_Project/contratacoes/models.py
+
+# ... (seus modelos ETP, TR, PCA, etc. continuam aqui em cima) ...
+
+# vvv ADICIONE O CÓDIGO ABAIXO vvv
+
+STATUS_CONTRATO_CHOICES = [
+    ('VIGENTE', 'Vigente'),
+    ('ENCERRADO', 'Encerrado'),
+    ('CANCELADO', 'Cancelado'),
+]
+
+class Contrato(models.Model):
+    processo_vinculado = models.ForeignKey(
+        Processo,
+        on_delete=models.PROTECT,
+        related_name='contratos',
+        verbose_name="Processo Vinculado"
+    )
+    licitacao_origem = models.ForeignKey(
+        Edital,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='contratos_gerados',
+        verbose_name="Licitação de Origem"
+    )
+    contratado = models.ForeignKey(
+        Fornecedor,
+        on_delete=models.PROTECT,
+        related_name='contratos',
+        verbose_name="Fornecedor Contratado"
+    )
+    numero_contrato = models.CharField(
+        max_length=50,
+        verbose_name="Número do Contrato"
+    )
+    ano_contrato = models.IntegerField(
+        verbose_name="Ano do Contrato"
+    )
+    objeto = models.TextField(
+        verbose_name="Objeto do Contrato"
+    )
+    valor_total = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name="Valor Total do Contrato (R$)"
+    )
+    data_assinatura = models.DateField(
+        verbose_name="Data de Assinatura"
+    )
+    data_inicio_vigencia = models.DateField(
+        verbose_name="Início da Vigência"
+    )
+    data_fim_vigencia = models.DateField(
+        verbose_name="Fim da Vigência"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CONTRATO_CHOICES,
+        default='VIGENTE',
+        verbose_name="Status do Contrato"
+    )
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = "Contrato"
+        verbose_name_plural = "Contratos"
+        unique_together = ('numero_contrato', 'ano_contrato') # Garante que não haja contratos duplicados
+        ordering = ['-ano_contrato', '-numero_contrato']
+
+    def __str__(self):
+        return f"Contrato {self.numero_contrato}/{self.ano_contrato} - {self.contratado.razao_social}"

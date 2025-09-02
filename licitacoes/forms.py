@@ -6,7 +6,7 @@ from .models import (
     # Importar os CHOICES (se precisar deles diretamente no form e forem definidos em licitacoes.models)
     STATUS_EDITAL_CHOICES, TIPO_INSTRUMENTO_CONVOCATORIO_CHOICES,
     MODALIDADE_LICITACAO_CHOICES, MODO_DISPUTA_CHOICES, VEICULO_PUBLICACAO_CHOICES,
-    TIPO_BENEFICIO_CHOICES, CRITERIO_JULGAMENTO_CHOICES, ITEM_CATEGORIA_CHOICES
+    TIPO_BENEFICIO_CHOICES, CRITERIO_JULGAMENTO_CHOICES, ITEM_CATEGORIA_CHOICES,ParticipanteLicitacao,Fornecedor
 )
 from django.db.models import Q # Necessário para filtrar querysets em ResultadoLicitacaoForm
 
@@ -154,3 +154,36 @@ class ResultadoLicitacaoForm(forms.ModelForm):
         else:
             self.fields['lote'].queryset = Lote.objects.none()
             self.fields['item_licitado'].queryset = ItemLicitado.objects.none()
+
+
+class ParticipanteForm(forms.ModelForm):
+    # Usamos um ModelChoiceField para criar uma lista suspensa de todos os fornecedores
+    fornecedor = forms.ModelChoiceField(
+        queryset=Fornecedor.objects.all().order_by('razao_social'),
+        label="Selecionar Fornecedor para Credenciar"
+    )
+
+    class Meta:
+        model = ParticipanteLicitacao
+        fields = ['fornecedor']
+
+
+
+# Em licitacoes/forms.py
+from .models import Lance, ParticipanteLicitacao, ItemLicitado
+
+class LanceForm(forms.ModelForm):
+    class Meta:
+        model = Lance
+        fields = ['participante', 'item', 'valor_lance']
+
+    def __init__(self, *args, **kwargs):
+        # Pega o objeto 'pregao' que vamos passar da view
+        pregao = kwargs.pop('pregao', None)
+        super().__init__(*args, **kwargs)
+
+        if pregao:
+            # Filtra o campo 'participante' para mostrar apenas os do pregão atual
+            self.fields['participante'].queryset = ParticipanteLicitacao.objects.filter(pregao=pregao)
+            # Filtra o campo 'item' para mostrar apenas os do edital do pregão atual
+            self.fields['item'].queryset = ItemLicitado.objects.filter(edital=pregao.edital)

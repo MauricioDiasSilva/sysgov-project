@@ -2,7 +2,7 @@
 from django import forms
 # Não precisa de inlineformset_factory aqui
 # Importe os modelos originais
-from .models import DocumentoFiscal, Pagamento
+from .models import DocumentoFiscal, Pagamento,NotaEmpenho
 
 # Formulário para o Documento Fiscal (como estava antes do formset)
 class DocumentoFiscalForm(forms.ModelForm):
@@ -58,4 +58,19 @@ class PagamentoForm(forms.ModelForm):
             'nota_fiscal_valor_pago': "Valor Pago da Nota Fiscal",
             'nota_fiscal_pagto_dt': "Data Efetiva do Pagamento",
             'recolhido_encargos_previdenciario': "Recolhido Encargos Previdenciários?",
+        }
+
+
+class NotaEmpenhoForm(forms.ModelForm):
+    class Meta:
+        model = NotaEmpenho
+        # Excluímos os campos que serão preenchidos automaticamente
+        exclude = ['contrato', 'fornecedor']
+        widgets = {
+            'numero_empenho': forms.TextInput(attrs={'class': 'form-control'}),
+            'ano_empenho': forms.NumberInput(attrs={'class': 'form-control'}),
+            'data_emissao': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'valor': forms.NumberInput(attrs={'class': 'form-control'}),
+            'descricao': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
         }

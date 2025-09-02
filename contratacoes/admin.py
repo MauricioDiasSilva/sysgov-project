@@ -1,14 +1,18 @@
 # SysGov_Project/contratacoes/admin.py
 
 from django.contrib import admin
-from .models import ETP, TR, PCA, ItemPCA, ItemCatalogo, PesquisaPreco, ParecerTecnico, ModeloTexto, RequisitoPadrao
+# ADICIONADO Contrato À IMPORTAÇÃO
+from .models import (
+    ETP, TR, PCA, ItemPCA, ItemCatalogo, PesquisaPreco, 
+    ParecerTecnico, ModeloTexto, RequisitoPadrao, Contrato
+)
 
 # Opcional: Classes Admin personalizadas para melhor visualização no Django Admin
 class ETPAdmin(admin.ModelAdmin):
     list_display = ('titulo', 'numero_processo', 'setor_demandante', 'autor', 'status', 'data_criacao')
     list_filter = ('status', 'setor_demandante', 'data_criacao')
     search_fields = ('titulo', 'numero_processo', 'descricao_necessidade')
-    raw_id_fields = ('processo_vinculado', 'autor', 'item_pca_vinculado') # Útil para ForeignKeys com muitos itens
+    raw_id_fields = ('processo_vinculado', 'autor', 'item_pca_vinculado')
     date_hierarchy = 'data_criacao'
 
 class TRAdmin(admin.ModelAdmin):
@@ -54,6 +58,14 @@ class RequisitoPadraoAdmin(admin.ModelAdmin):
     list_filter = ('ativo',)
     search_fields = ('codigo', 'titulo', 'descricao')
 
+# NOVA CLASSE ADMIN PARA CONTRATOS
+class ContratoAdmin(admin.ModelAdmin):
+    list_display = ('numero_contrato', 'ano_contrato', 'contratado', 'valor_total', 'status', 'data_assinatura')
+    list_filter = ('status', 'ano_contrato', 'contratado')
+    search_fields = ('numero_contrato', 'objeto', 'contratado__razao_social')
+    raw_id_fields = ('processo_vinculado', 'licitacao_origem', 'contratado')
+    date_hierarchy = 'data_assinatura'
+
 
 # Registra seus modelos no painel de administração
 admin.site.register(ETP, ETPAdmin)
@@ -65,3 +77,5 @@ admin.site.register(PesquisaPreco, PesquisaPrecoAdmin)
 admin.site.register(ParecerTecnico, ParecerTecnicoAdmin)
 admin.site.register(ModeloTexto, ModeloTextoAdmin)
 admin.site.register(RequisitoPadrao, RequisitoPadraoAdmin)
+# NOVO REGISTRO PARA CONTRATOS
+admin.site.register(Contrato, ContratoAdmin)

@@ -21,7 +21,8 @@ urlpatterns = [
     path('etps/<int:etp_id>/anexos/adicionar/', views.adicionar_anexo_etp, name='adicionar_anexo_etp'),
     path('etps/<int:pk>/gerar-tr/', views.gerar_tr_a_partir_etp, name='gerar_tr_a_partir_etp'),
     path('etp/assistente-ia/', views.gerar_etp_ia_view, name='gerar_etp_ia'),
-
+    path('etp/<int:pk>/processar-acao/', views.processar_acao_etp, name='processar_acao_etp'),
+    
     # URLs para TRs
     path('trs/', views.listar_trs, name='listar_trs'),
     path('trs/criar/', views.criar_tr, name='criar_tr'),
@@ -44,18 +45,19 @@ urlpatterns = [
     # URLs para Itens de Catálogo
     path('catalogo/', views.listar_catalogo_itens, name='listar_catalogo_itens'),
     path('catalogo/novo/', views.criar_item_catalogo, name='criar_item_catalogo'), # Exemplo de URL de criação
-
+    path('catalogo/item/<int:pk>/editar/', views.editar_item_catalogo, name='editar_item_catalogo'),
     # URLs para Modelos de Texto
     path('modelos-texto/', views.listar_modelos_texto, name='listar_modelos_texto'),
 
     # URLs para Requisitos Padrão
     path('requisitos-padrao/', views.listar_requisitos_padrao, name='listar_requisitos_padrao'),
 
-    path('catalogo/', views.listar_catalogo_itens, name='listar_catalogo_itens'),
-    path('catalogo/novo/', views.criar_item_catalogo, name='criar_item_catalogo'), # Se for usar a view de criação
-
     # <<< NOVAS URLS: Modelos de Texto e Requisitos Padrão >>>
     path('modelos-texto/', views.listar_modelos_texto, name='listar_modelos_texto'),
     path('requisitos-padrao/', views.listar_requisitos_padrao, name='listar_requisitos_padrao'),
 
+    path('processo/<int:processo_id>/contrato/criar/', views.criar_contrato, name='criar_contrato'),
+    path('contratos/', views.listar_contratos, name='listar_contratos'),
+    path('contrato/<int:pk>/', views.detalhar_contrato, name='detalhar_contrato'),
+    path('contrato/<int:pk>/editar/', views.editar_contrato, name='editar_contrato'),
 ]

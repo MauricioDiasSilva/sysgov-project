@@ -1,348 +1,109 @@
-
-{# SysGov_Project/core/templates/core/detalhes_processo.html #}
-
-{% extends 'base.html' %} {# Estende o template base principal do projeto #}
+{% extends 'base.html' %}
 {% load widget_tweaks %}
-{% load static %}
 
-{% block title_suffix %}Detalhes do Processo{% endblock title_suffix %}
+{% block title %}{{ titulo_pagina }}{% endblock %}
 
-{% block content %} {# Todo o conteúdo da página vai dentro deste bloco #}
-
-<section class="header-section mb-4">
-    <div class="container">
-        <h1 class="display-5 fw-bold">Detalhes do Processo</h1>
-        <p class="lead">Informações detalhadas sobre o processo **{{ processo.numero_protocolo|default:"N/A" }}**.</p>
+{% block content %}
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-5 fw-bold text-primary mb-0">{{ titulo_pagina }}</h1>
+            <p class="lead">{{ processo.titulo }}</p>
+        </div>
+        <div>
+            <a href="{% url 'meus_processos' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-list me-2"></i>Voltar para a Lista
+            </a>
+        </div>
     </div>
-</section>
 
-<div class="container my-4">
-    <div class="row">
-        {# Coluna Principal (Conteúdo Dinâmico) #}
-        <div class="col-lg-8">
-            {# Card Informações Principais do Processo #}
-            <div class="card shadow-sm mb-4 border-0 rounded-4" id="secao-informacoes-principais">
-                <div class="card-header card-header-custom p-3">
-                    <h5 class="mb-0">Informações Principais do Processo</h5>
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <h5 class="mb-0">Documentos e Ações do Processo</h5>
+        </div>
+        <div class="list-group list-group-flush">
+            
+            <div class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h6 class="mb-1">
+                        <i class="fas fa-file-alt me-2 text-primary"></i>
+                        Estudo Técnico Preliminar (ETP)
+                    </h6>
+                    {% if etp %}
+                        <p class="mb-1 text-muted">{{ etp.titulo }} - <span class="badge bg-info">{{ etp.get_status_display }}</span></p>
+                    {% else %}
+                        <p class="mb-1 text-muted">Nenhum ETP criado para este processo.</p>
+                    {% endif %}
                 </div>
-                <div class="card-body p-4">
-                    <div class="row mb-3">
-                        <div class="col-md-12">
-                            <strong>Título/Assunto:</strong> <span class="text-muted">{{ processo.titulo }}</span>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <strong>Número de Protocolo:</strong> <span class="text-muted">{{ processo.numero_protocolo|default:"Não informado" }}</span>
-                        </div>
-                        <div class="col-md-6">
-                            <strong>Data de Abertura:</strong> <span class="text-muted">{{ processo.data_criacao|date:"d/m/Y H:i" }}</span>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <strong>Status Atual:</strong> 
-                            {% if processo.status == 'EM_ANALISE' %}
-                                <span class="badge bg-warning text-dark fs-6">{{ processo.get_status_display }}</span>
-                            {% elif processo.status == 'APROVADO' %}
-                                <span class="badge bg-success fs-6">{{ processo.get_status_display }}</span>
-                            {% elif processo.status == 'REJEITADO' %}
-                                <span class="badge bg-danger fs-6">{{ processo.get_status_display }}</span>
-                            {% elif processo.status == 'CONCLUIDO' %}
-                                <span class="badge bg-info fs-6">{{ processo.get_status_display }}</span>
-                            {% else %}
-                                <span class="badge bg-secondary fs-6">{{ processo.get_status_display }}</span>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-6">
-                            <strong>Demandante:</strong> <span class="text-muted">{{ processo.usuario.username }}</span>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-12">
-                            <strong>Descrição Detalhada:</strong>
-                            <p class="text-muted mt-2">{{ processo.descricao|default:"Nenhuma descrição fornecida." }}</p>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                         <a href="{% url 'meus_processos' %}" class="btn btn-outline-secondary btn-sm me-2">
-                            <i class="bi bi-arrow-left-circle"></i> Voltar
+                <div>
+                    {% if etp %}
+                        <a href="{% url 'contratacoes:detalhar_etp' pk=etp.pk %}" class="btn btn-sm btn-outline-secondary">Ver Detalhes</a>
+                    {% else %}
+                        <a href="{% url 'contratacoes:criar_etp' processo_id=processo.pk %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus me-1"></i> Criar ETP
                         </a>
-                        <a href="{% url 'criar_processo' %}" class="btn btn-success btn-sm">
-                            <i class="bi bi-plus-circle"></i> Novo Processo
-                        </a>
-                        <a href="{% url 'adicionar_anexo_ao_processo' processo_id=processo.id %}" class="btn btn-primary btn-sm">
-                            <i class="bi bi-file-earmark-plus"></i> Adicionar Anexo
-                        </a>
-                    </div>
+                    {% endif %}
                 </div>
             </div>
 
-            {# ÁREA ONDE O CONTEÚDO DO DOCUMENTO SERÁ CARREGADO DINAMICAMENTE (AQUI ESTÁ A CHAVE!) #}
-            <div id="document-display-area" class="mt-4">
-                <div class="alert alert-info text-center">
-                    Clique em um documento na navegação lateral para visualizar seus detalhes aqui.
+            <div class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h6 class="mb-1">
+                        <i class="fas fa-file-signature me-2 text-primary"></i>
+                        Termo de Referência (TR)
+                    </h6>
+                    {% if tr %}
+                        <p class="mb-1 text-muted">{{ tr.titulo }} - <span class="badge bg-info">{{ tr.get_status_display }}</span></p>
+                    {% else %}
+                        <p class="mb-1 text-muted">Nenhum TR criado para este processo.</p>
+                    {% endif %}
+                </div>
+                <div>
+                    {% if tr %}
+                         <a href="{% url 'contratacoes:detalhar_tr' pk=tr.pk %}" class="btn btn-sm btn-outline-secondary">Ver Detalhes</a>
+                    {% elif etp and etp.status == 'APROVADO' %}
+                        <a href="{% url 'contratacoes:gerar_tr_a_partir_etp' pk=etp.pk %}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus me-1"></i> Gerar TR
+                        </a>
+                    {% else %}
+                        <button class="btn btn-sm btn-primary" disabled title="É necessário um ETP Aprovado para gerar o TR.">
+                            <i class="fas fa-plus me-1"></i> Gerar TR
+                        </button>
+                    {% endif %}
                 </div>
             </div>
             
-            <div class="text-center mt-4">
-                <a href="{% url 'meus_processos' %}" class="btn btn-outline-secondary btn-lg">
-                    <i class="bi bi-arrow-left-circle"></i> Voltar para Meus Processos
-                </a>
-            </div>
-
-        </div>
-
-        {# Coluna Lateral com Links Rápidos #}
-        <div class="col-lg-4">
-            <div class="card shadow-sm border-0 rounded-4 sticky-top" style="top: 80px;"> {# sticky-top para fixar a barra lateral ao rolar #}
-                <div class="card-header card-header-custom p-3">
-                    <h5 class="mb-0">Navegação Rápida do Processo</h5>
-                </div>
-                <div class="card-body p-0">
-                    <div class="list-group list-group-flush rounded-bottom-4">
-                        {# Informações Principais #}
-                        <a href="#secao-informacoes-principais" class="list-group-item list-group-item-action py-3">
-                            <i class="bi bi-info-circle me-2"></i> Informações Principais
-                        </a>
-
-                        {# Links para Documentos (ETP, TR, Edital, DF, Pagamento) #}
-                        {# ETP #}
-                        {% if processo.etp_documento %}
-                            <a href="#" class="list-group-item list-group-item-action py-3 document-link" data-document-type="etp" data-document-id="{{ processo.etp_documento.pk }}">
-                                <i class="bi bi-file-earmark-spreadsheet me-2"></i> ETP ({{ processo.etp_documento.get_status_display }})
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <h6 class="mb-1">
+                            <i class="fas fa-file-contract me-2 text-primary"></i>
+                            Contratos
+                        </h6>
+                    </div>
+                    <div>
+                        {% if etp.status == 'APROVADO' %}
+                            <a href="{% url 'contratacoes:criar_contrato' processo_id=processo.pk %}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-plus me-1"></i> Adicionar Contrato
                             </a>
                         {% else %}
-                            <a href="{% url 'contratacoes:criar_etp_para_processo' processo_id=processo.id %}" class="list-group-item list-group-item-action py-3 text-muted">
-                                <i class="bi bi-plus-circle me-2"></i> Criar ETP
-                            </a>
+                            <button class="btn btn-sm btn-primary" disabled title="É necessário um ETP Aprovado para adicionar um contrato.">
+                                <i class="fas fa-plus me-1"></i> Adicionar Contrato
+                            </button>
                         {% endif %}
-
-                        {# TR #}
-                        {% if processo.tr_documento %}
-                            <a href="#" class="list-group-item list_group-item-action py-3 document-link" data-document-type="tr" data-document-id="{{ processo.tr_documento.pk }}">
-                                <i class="bi bi-journal-text me-2"></i> TR ({{ processo.tr_documento.get_status_display }})
-                            </a>
-                        {% elif processo.etp_documento %}
-                            <a href="{% url 'contratacoes:gerar_tr_a_partir_etp' pk=processo.etp_documento.pk %}" class="list-group-item list-group-item-action py-3 text-muted">
-                                <i class="bi bi-file-earmark-plus me-2"></i> Gerar TR
-                            </a>
-                        {% else %}
-                            <a href="#" class="list-group-item list-group-item-action py-3 disabled">
-                                <i class="bi bi-journal-text me-2"></i> TR (Requer ETP)
-                            </a>
-                        {% endif %}
-
-                        {# Edital #}
-                        {% if processo.edital_licitacao %}
-                            <a href="#" class="list-group-item list-group-item-action py-3 document-link" data-document-type="edital" data-document-id="{{ processo.edital_licitacao.pk }}">
-                                <i class="bi bi-journal-check me-2"></i> Edital ({{ processo.edital_licitacao.get_status_display }})
-                            </a>
-                        {% else %}
-                            <a href="{% url 'licitacoes:criar_edital_para_processo' processo_id=processo.id %}" class="list-group-item list-group-item-action py-3 text-muted">
-                                <i class="bi bi-plus-circle me-2"></i> Criar Edital
-                            </a>
-                        {% endif %}
-
-                        {# Documentos Fiscais #}
-                        {% if processo.documentos_fiscais.all %}
-                            {% for df in processo.documentos_fiscais.all %}
-                                <a href="#" class="list-group-item list-group-item-action py-3 document-link" data-document-type="df" data-document-id="{{ df.pk }}">
-                                    <i class="bi bi-receipt me-2"></i> NF {{ df.documento_fiscal_numero }}
-                                </a>
-                            {% endfor %}
-                        {% else %}
-                            <a href="{% url 'financeiro:registrar_documento_fiscal_processo' processo_id=processo.id %}" class="list-group-item list-group-item-action py-3 text-muted">
-                                <i class="bi bi-file-earmark-plus me-2"></i> Registrar DF
-                            </a>
-                        {% endif %}
-
-                        {# Pagamentos #}
-                        {% if processo.pagamentos_processo.all %}
-                            {% for pg in processo.pagamentos_processo.all %}
-                                <a href="#" class="list-group-item list-group-item-action py-3 document-link" data-document-type="pagamento" data-document-id="{{ pg.pk }}">
-                                    <i class="bi bi-currency-dollar me-2"></i> Pgto {{ pg.documento_fiscal_numero }}
-                                </a>
-                            {% endfor %}
-                        {% else %}
-                            <a href="{% url 'financeiro:registrar_pagamento_processo' processo_id=processo.id %}" class="list-group-item list-group-item-action py-3 text-muted">
-                                <i class="bi bi-plus-circle me-2"></i> Registrar Pgto
-                            </a>
-                        {% endif %}
-
-                        {# NOVIDADE: LINKS PARA ARQUIVOS ANEXOS GENÉRICOS #}
-                        {% if anexos_do_processo %} {# 'anexos_do_processo' é passado pela view #}
-                            <hr class="my-0">
-                            <h6 class="px-3 pt-3 pb-2 mb-0 fw-bold text-muted">Anexos:</h6>
-                            {% for anexo in anexos_do_processo %}
-                                <a href="#" class="list-group-item list-group-item-action py-3 document-link" data-document-type="arquivo_anexo" data-document-id="{{ anexo.pk }}">
-                                    <i class="bi bi-file-earmark{% if anexo.is_pdf %}-pdf{% elif anexo.is_image %}-image{% elif anexo.is_xml %}-code{% else %}-text{% endif %} me-2"></i> {{ anexo.titulo }} ({{ anexo.get_file_extension }})
-                                </a>
-                            {% endfor %}
-                        {% endif %}
-                        {# FIM DA NOVIDADE: ANEXOS GENÉRICOS #}
-
-                        {# Outros links como 'Histórico', etc. #}
-                        <a href="#secao-outros-documentos" class="list-group-item list-group-item-action py-3 disabled" aria-disabled="true">
-                            <i class="bi bi-folder-plus me-2"></i> Anexos e Histórico
-                        </a>
                     </div>
                 </div>
+                {% if contratos %}
+                    <ul class="list-unstyled mt-2 mb-0">
+                    {% for contrato in contratos %}
+                        <li class="ps-4">- {{ contrato }}</li>
+                    {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mb-1 mt-2 text-muted ps-4">Nenhum contrato adicionado a este processo.</p>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
-
 {% endblock content %}
-
-{% block extra_js %}
-<script src="{% static 'core/pdfjs/pdf.js' %}"></script> {# Carrega PDF.js globalmente na página #}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const documentDisplayArea = document.getElementById('document-display-area');
-        const documentLinks = document.querySelectorAll('.document-link');
-
-        // Definir workerSrc globalmente se pdf.js foi carregado
-        if (typeof pdfjsLib !== 'undefined') {
-            pdfjsLib.workerSrc = "{% static 'core/pdfjs/pdf.worker.js' %}";
-        }
-
-        // Função para renderizar uma página de PDF específica
-        function renderPdfPage(page, canvas, loadingMessage) {
-            const scale = 1.5;
-            const viewport = page.getViewport({ scale: scale });
-            const context = canvas.getContext('2d');
-            
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-            
-            const renderContext = {
-                canvasContext: context,
-                viewport: viewport,
-            };
-            return page.render(renderContext).promise.then(function () {
-                loadingMessage.style.display = 'none'; // Esconde a mensagem de carregamento
-            });
-        }
-
-        // Função principal para carregar o conteúdo do documento via AJAX
-        function loadDocumentContent(documentType, documentId) {
-            // Exibir loading
-            documentDisplayArea.innerHTML = `
-                <div class="text-center my-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Carregando...</span>
-                    </div>
-                    <p class="mt-3">Carregando detalhes do documento...</p>
-                </div>
-            `;
-
-            let url = '';
-            // Define a URL da API baseada no tipo de documento
-            if (documentType === 'etp') {
-                url = `{% url 'api_etp_detail_snippet' pk=0 %}`.replace('0', documentId);
-            } else if (documentType === 'tr') {
-                url = `{% url 'api_tr_detail_snippet' pk=0 %}`.replace('0', documentId);
-            } else if (documentType === 'edital') {
-                url = `{% url 'api_edital_detail_snippet' pk=0 %}`.replace('0', documentId);
-            } else if (documentType === 'df') {
-                url = `{% url 'api_df_detail_snippet' pk=0 %}`.replace('0', documentId);
-            } else if (documentType === 'pagamento') {
-                url = `{% url 'api_pagamento_detail_snippet' pk=0 %}`.replace('0', documentId);
-            } else if (documentType === 'arquivo_anexo') { 
-                url = `{% url 'api_arquivo_anexo_detail_snippet' pk=0 %}`.replace('0', documentId);
-            } else {
-                documentDisplayArea.innerHTML = '<div class="alert alert-danger">Tipo de documento desconhecido.</div>';
-                return;
-            }
-
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        if (response.status === 403) {
-                             throw new Error('Permissão negada para visualizar este documento.');
-                        } else if (response.status === 404) {
-                            throw new Error('Documento não encontrado.');
-                        } else if (response.redirected) {
-                            window.location.href = response.url;
-                            return;
-                        }
-                        throw new Error(`Erro de rede ou servidor: ${response.status} ${response.statusText}`);
-                    }
-                    return response.text();
-                })
-                .then(html => {
-                    documentDisplayArea.innerHTML = html; // Insere o HTML retornado na área
-
-                    // Lógica para renderizar PDF/Imagem/XML APÓS o snippet HTML ser inserido
-                    const currentAnexoType = documentType; // Tipo de documento que acabou de ser carregado
-                    const currentAnexoId = documentId;
-                    
-                    // Se o documento é um PDF, inicializa PDF.js
-                    if (currentAnexoType === 'arquivo_anexo' && document.querySelector('#pdf-canvas')) {
-                        // A URL do anexo é obtida diretamente do elemento <a> correspondente
-                        const anexoLinkElement = document.querySelector('.list-group-item.document-link[data-document-type="arquivo_anexo"][data-document-id="' + currentAnexoId + '"]');
-                        if (anexoLinkElement) {
-                            const anexoUrl = anexoLinkElement.href;
-                            const pdfLoadingMessage = document.getElementById('pdf-loading-message');
-                            const pdfCanvas = document.getElementById('pdf-canvas');
-
-                            if (pdfjsLib && pdfCanvas) {
-                                pdfjsLib.getDocument(anexoUrl).promise.then(pdf => {
-                                    pdfLoadingMessage.textContent = 'Carregando página 1 de ' + pdf.numPages + '...';
-                                    pdf.getPage(1).then(page => {
-                                        renderPdfPage(page, pdfCanvas, pdfLoadingMessage);
-                                    });
-                                }).catch(error => {
-                                    pdfLoadingMessage.textContent = 'Erro ao carregar PDF: ' + error.message;
-                                    console.error('Erro ao carregar PDF.js:', error);
-                                });
-                            } else {
-                                console.error('PDF.js ou canvas não disponível após carregar snippet.');
-                                pdfLoadingMessage.textContent = 'Erro: Visualizador PDF.js não carregado.';
-                            }
-                        } else {
-                            console.error('Elemento do link do anexo não encontrado para obter a URL do PDF.');
-                            documentDisplayArea.innerHTML = `<div class="alert alert-danger">Erro: Não foi possível obter a URL do anexo para visualização.</div>`;
-                        }
-                    }
-                    // Adicione lógica similar para imagem/XML se eles precisam de manipulação pós-load
-                })
-                .catch(error => {
-                    console.error('Erro ao carregar o documento:', error);
-                    documentDisplayArea.innerHTML = `
-                        <div class="alert alert-danger" role="alert">
-                            Erro ao carregar: ${error.message}. Por favor, tente novamente.
-                        </div>
-                    `;
-                });
-        }
-
-        // Adiciona o evento de clique a todos os links de documento na navegação lateral
-        documentLinks.forEach(link => {
-            link.addEventListener('click', function(event) {
-                event.preventDefault(); // Impede o comportamento padrão do link
-                // Remove a classe 'active' de todos os links e adiciona ao clicado
-                documentLinks.forEach(item => item.classList.remove('active'));
-                this.classList.add('active'); // Adiciona 'active' ao link clicado
-                
-                const docType = this.dataset.documentType;
-                const docId = this.dataset.documentId;
-                loadDocumentContent(docType, docId); // processId não é mais necessário aqui
-            });
-        });
-
-        // Opcional: Carregar o primeiro documento ao carregar a página
-        const firstDocumentToLoad = document.querySelector('.list-group-item.document-link');
-        if (firstDocumentToLoad) {
-            firstDocumentToLoad.click(); // Simula o clique para carregar o primeiro documento
-        } else {
-            documentDisplayArea.innerHTML = `
-                <div class="alert alert-info text-center">
-                    Clique em um documento na navegação lateral para visualizar seus detalhes aqui.
-                </div>
-            `;
-        }
-    });
-</script>
-{% endblock extra_js %}

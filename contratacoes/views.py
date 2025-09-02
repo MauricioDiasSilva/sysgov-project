@@ -7,10 +7,10 @@ from django.http import JsonResponse, HttpResponse
 from django.db.models import Avg, Count, Q, F # Manter Q se for usar para queries mais complexas
 from django.forms import inlineformset_factory
 from django.template.loader import render_to_string
-# from weasyprint import HTML, CSS # Descomente se for usar para gerar PDFs
+from django.db import transaction
 import json
-# from django.contrib.auth.models import User # Geralmente não necessário se usar settings.AUTH_USER_MODEL
-# from django.conf import settings # Geralmente não necessário diretamente em views, apenas em models ou settings
+from weasyprint import HTML
+from core.forms import ArquivoAnexoForm
 from decimal import Decimal # Necessário para cálculos com DecimalField
 from . import ai_services
 # Importação crucial do modelo Processo e ArquivoAnexo do app 'core'
@@ -19,7 +19,7 @@ from django.forms import inlineformset_factory
 # Importar os modelos da sua própria app 'contratacoes'
 from .models import (
     ETP, TR, PCA, ItemPCA, PesquisaPreco, ParecerTecnico,
-    ModeloTexto, RequisitoPadrao, ItemCatalogo, STATUS_DOCUMENTO_CHOICES
+    ModeloTexto, RequisitoPadrao, ItemCatalogo, STATUS_DOCUMENTO_CHOICES,Contrato 
 )
 
 from .forms import (
@@ -75,34 +75,65 @@ from django.contrib import messages
 from django.db.models import Avg, Count, Q, F
 # ... (outros imports) ...
 
+# Em SysGov_Project/contratacoes/views.py
+
+from django.db.models import Q # <<< Adicione esta importação no topo se não existir
+
+# ... (outras views) ...
+
 @login_required 
 def listar_etps(request):
-    # Lógica de Permissão interna
-    if not request.user.has_perm('contratacoes.view_etp') and not request.user.is_superuser:
-        messages.error(request, "Você não tem permissão para visualizar esta lista de ETPs.")
-        return redirect('home') # Redireciona para a página inicial com a mensagem
+    # Inicia o queryset base. Nenhum ETP por padrão, a menos que uma regra se aplique.
+    etps_base = ETP.objects.none()
 
-    # Lê o parâmetro 'status' da URL. Se não existir, a variável é None.
-    status_filtro = request.GET.get('status') 
-
-    # Inicia com todos os ETPs
-    etps = ETP.objects.all()
-
-    # Se um status foi passado na URL, filtra o queryset
-    if status_filtro:
-        etps = etps.filter(status=status_filtro)
+    # Verifica os grupos do usuário para aplicar as regras de visualização
+    is_secretaria = request.user.groups.filter(name='Secretarias').exists()
+    is_analise = request.user.groups.filter(name='Analise de Requerimentos').exists()
+    is_orcamento = request.user.groups.filter(name='Setor de Orcamento').exists()
     
-    # Ordena os resultados
-    etps = etps.order_by('-data_criacao')
+    # REGRA 1: Superusuários veem tudo.
+    if request.user.is_superuser:
+        etps_base = ETP.objects.all()
+    
+    # REGRA 2: Usuários de Secretarias veem apenas os ETPs que eles criaram.
+    elif is_secretaria:
+        etps_base = ETP.objects.filter(autor=request.user)
+        
+    # REGRA 3: Pessoal da Análise vê o que está aguardando análise ou o que eles já manipularam.
+    elif is_analise:
+        etps_base = ETP.objects.filter(
+            Q(status='AGUARDANDO_ANALISE') | 
+            Q(status='RECUSADO_ANALISE') | 
+            Q(status='AGUARDANDO_ORCAMENTO') |
+            Q(status='APROVADO')
+        )
 
+    # REGRA 4: Pessoal do Orçamento vê o que está aguardando orçamento ou o que eles já manipularam.
+    elif is_orcamento:
+        etps_base = ETP.objects.filter(
+            Q(status='AGUARDANDO_ORCAMENTO') |
+            Q(status='RECUSADO_ORCAMENTO') |
+            Q(status='APROVADO')
+        )
+    
+    # Opcional: Se um usuário não pertence a nenhum grupo específico, ele só vê o que criou.
+    else:
+        etps_base = ETP.objects.filter(autor=request.user)
+
+    # Mantemos o filtro de status que já existia na URL
+    status_filtro = request.GET.get('status') 
+    if status_filtro:
+        etps_filtrados = etps_base.filter(status=status_filtro)
+    else:
+        etps_filtrados = etps_base
+    
     context = {
-        'etps': etps,
+        'etps': etps_filtrados.order_by('-data_criacao'),
         'titulo_pagina': 'Lista de ETPs',
-        'status_filtro': status_filtro, # Passa o status do filtro para o template
+        'status_filtro': status_filtro,
     }
     return render(request, 'contratacoes/listar_etps.html', context)
 
-# Em SysGov_Project/contratacoes/views.py
 
 @login_required
 def criar_etp(request, processo_id=None):
@@ -116,28 +147,25 @@ def criar_etp(request, processo_id=None):
     dados_iniciais = request.session.pop('dados_etp_ia', {})
 
     if request.method == 'POST':
-        print("--- DENTRO DO POST ---") # ESPIÃO 1
+        print("--- DENTRO DO POST ---")
         form = ETPForm(request.POST)
         pesquisas_formset = PesquisaPrecoFormSet(request.POST, prefix='pesquisas')
         pareceres_formset = ParecerTecnicoFormSet(request.POST, prefix='pareceres')
 
-        # Vamos verificar a validade de cada um separadamente
         form_valido = form.is_valid()
         pesquisas_valido = pesquisas_formset.is_valid()
         pareceres_valido = pareceres_formset.is_valid()
 
-        print(f"Formulário principal é válido? {form_valido}") # ESPIÃO 2
-        print(f"Formset de Pesquisas é válido? {pesquisas_valido}") # ESPIÃO 3
-        print(f"Formset de Pareceres é válido? {pareceres_valido}") # ESPIÃO 4
+        print(f"Formulário principal é válido? {form_valido}")
+        print(f"Formset de Pesquisas é válido? {pesquisas_valido}")
+        print(f"Formset de Pareceres é válido? {pareceres_valido}")
 
-        if not pesquisas_valido:
-            print("--- ERROS NO FORMSET DE PESQUISAS ---") # ESPIÃO 5
-            print(pesquisas_formset.errors)
-            print(pesquisas_formset.non_form_errors())
-
+        if not pareceres_valido:
+            print("--- ERROS NO FORMSET DE PARECERES ---")
+            print(pareceres_formset.errors)
 
         if form_valido and pesquisas_valido and pareceres_valido:
-            print("--- TUDO VÁLIDO, TENTANDO SALVAR ---") # ESPIÃO 6
+            print("--- TUDO VÁLIDO, TENTANDO SALVAR ---")
             try:
                 with transaction.atomic():
                     etp = form.save(commit=False)
@@ -145,12 +173,10 @@ def criar_etp(request, processo_id=None):
                     if processo_core:
                         etp.processo_vinculado = processo_core
                     etp.save()
-                    print("--- ETP PRINCIPAL SALVO COM SUCESSO ---") # ESPIÃO 7
-
+                    
                     pesquisas_formset.instance = etp
                     pesquisas_formset.save()
-                    print("--- FORMSET DE PESQUISAS SALVO COM SUCESSO ---") # ESPIÃO 8
-
+                    
                     pareceres_formset.instance = etp
                     pareceres_formset.save()
 
@@ -160,12 +186,13 @@ def criar_etp(request, processo_id=None):
                     else:
                         return redirect('contratacoes:detalhar_etp', pk=etp.pk)
             except Exception as e:
-                messages.error(request, f"Ocorreu um erro inesperado: {e}")
+                # <<< ADICIONAMOS ESTE ESPIÃO PARA VER O ERRO OCULTO >>>
+                print(f"!!!!!!!!!! ERRO AO SALVAR NO BANCO DE DADOS: {e} !!!!!!!!!!!")
+                messages.error(request, f"Ocorreu um erro inesperado ao salvar: {e}")
 
         else:
             messages.error(request, 'Erro de validação. Verifique os campos.')
-
-    else:  # GET request
+    else:
         form = ETPForm(initial=dados_iniciais)
         pesquisas_formset = PesquisaPrecoFormSet(prefix='pesquisas')
         pareceres_formset = ParecerTecnicoFormSet(prefix='pareceres')
@@ -197,53 +224,38 @@ def detalhar_etp(request, pk):
     }
     return render(request, 'contratacoes/detalhar_etp.html', context)
 
+# Em SysGov_Project/contratacoes/views.py
+
 @login_required
 def editar_etp(request, pk):
     etp = get_object_or_404(ETP, pk=pk)
 
-    # Lógica de permissão e status:
-    # Apenas o autor ou um superusuário pode editar
+    # Lógica de permissão
     if etp.autor != request.user and not request.user.is_superuser:
         messages.error(request, 'Você não tem permissão para editar este ETP.')
         return redirect('contratacoes:detalhar_etp', pk=etp.pk)
 
-    # Restrição de edição baseada no status (ex: não edita se já aprovado/recusado/cancelado)
-    if etp.status in ['APROVADO', 'RECUSADO', 'CANCELADO'] and not request.user.is_superuser:
-        messages.warning(request, f'Este ETP está em status "{etp.get_status_display()}". Edições não são permitidas.')
-        return redirect('contratacoes:detalhar_etp', pk=etp.pk)
-
     if request.method == 'POST':
         form = ETPForm(request.POST, instance=etp)
+        # <<< ALINHAMENTO AQUI: Criamos os formsets também no POST >>>
         pesquisas_formset = PesquisaPrecoFormSet(request.POST, instance=etp, prefix='pesquisas')
         pareceres_formset = ParecerTecnicoFormSet(request.POST, instance=etp, prefix='pareceres')
 
         if form.is_valid() and pesquisas_formset.is_valid() and pareceres_formset.is_valid():
             try:
                 with transaction.atomic():
-                    etp = form.save(commit=False)
-                    # A data_ultima_atualizacao é auto_now=True no modelo
-                    etp.save()
-
-                    pesquisas_formset.instance = etp
+                    form.save()
                     pesquisas_formset.save()
-
-                    pareceres_formset.instance = etp
                     pareceres_formset.save()
-
-                messages.success(request, 'ETP atualizado com sucesso!')
-                return redirect('contratacoes:detalhar_etp', pk=etp.pk)
+                    messages.success(request, 'ETP atualizado com sucesso!')
+                    return redirect('contratacoes:detalhar_etp', pk=etp.pk)
             except Exception as e:
-                messages.error(request, f"Não foi possível atualizar o ETP devido a um erro inesperado: {e}")
-                print(f"Erro na atualização do ETP (bloco try/except): {e}")
+                print(f"!!!!!!!!!! ERRO AO SALVAR NA EDIÇÃO: {e} !!!!!!!!!!!")
+                messages.error(request, f"Ocorreu um erro inesperado ao salvar: {e}")
         else:
             messages.error(request, 'Erro ao atualizar ETP. Verifique os campos.')
-            print("====================================")
-            print("ERRO DE VALIDAÇÃO DO FORMULÁRIO ETP (EDIÇÃO):")
-            print("Erros do formulário principal (ETP):", form.errors)
-            print("Erros não-campo do formulário principal (ETP):", form.non_field_errors)
-            print("Erros do formset de Pesquisas:", pesquisas_formset.errors)
-            print("Erros do formset de Pareceres:", pareceres_formset.errors)
-            print("====================================")
+            print("ERROS (EDIÇÃO):", form.errors, pesquisas_formset.errors, pareceres_formset.errors)
+
     else: # GET request
         form = ETPForm(instance=etp)
         pesquisas_formset = PesquisaPrecoFormSet(instance=etp, prefix='pesquisas')
@@ -275,13 +287,35 @@ def atualizar_status_etp(request, pk):
     # Se não for POST ou se o formulário não for válido, renderiza com o formulário de status
     return redirect('contratacoes:detalhar_etp', pk=etp.pk) # Redireciona de volta para a página de detalhes, que exibirá o formulário de status
 
-# --- VIEWS PARA TR ---
+# Em SysGov_Project/contratacoes/views.py
+
+# ... (outras views) ...
+
 @login_required
 def listar_trs(request):
-    trs = TR.objects.filter(autor=request.user).order_by('-data_criacao')
+    # Inicia com uma lista vazia
+    trs_base = TR.objects.none()
+
+    # Verifica os grupos do usuário
+    is_secretaria = request.user.groups.filter(name='Secretarias').exists()
+    # Para o TR, vamos considerar que tanto a Análise quanto o Orçamento precisam ver os TRs em andamento
+    is_analista_ou_orcamento = request.user.groups.filter(name__in=['Analise de Requerimentos', 'Setor de Orcamento']).exists()
+
+    # REGRA 1: Superusuários veem tudo.
+    if request.user.is_superuser:
+        trs_base = TR.objects.all()
+    
+    # REGRA 2: Pessoal de Análise e Orçamento veem todos os TRs que não estão mais em elaboração.
+    elif is_analista_ou_orcamento:
+        trs_base = TR.objects.exclude(status='EM_ELABORACAO')
+
+    # REGRA 3: Usuários de Secretarias (e outros sem grupo especial) veem apenas os que eles criaram.
+    else:
+        trs_base = TR.objects.filter(autor=request.user)
+        
     context = {
-        'trs': trs,
-        'titulo_pagina': 'Meus Termos de Referência',
+        'trs': trs_base.order_by('-data_criacao'),
+        'titulo_pagina': 'Lista de Termos de Referência',
     }
     return render(request, 'contratacoes/listar_trs.html', context)
 
@@ -545,23 +579,36 @@ def editar_pca(request, pk):
     return render(request, 'contratacoes/editar_pca.html', context)
 
 
-# --- VIEWS PARA ANEXOS (com base em core.ArquivoAnexo) ---
-# View para adicionar anexo a um ETP
+# Em SysGov_Project/contratacoes/views.py
+
+from django.contrib.contenttypes.models import ContentType # <<< ADICIONE ESTA IMPORTAÇÃO NO TOPO
+
+# ... (resto das suas importações) ...
+
 @login_required
 def adicionar_anexo_etp(request, etp_id):
     etp = get_object_or_404(ETP, pk=etp_id)
-    # Verificar permissão: apenas o autor ou superuser pode adicionar anexos
+    # Verificar permissão... (seu código aqui está correto)
     if etp.autor != request.user and not request.user.is_superuser:
         messages.error(request, 'Você não tem permissão para adicionar anexos a este ETP.')
         return redirect('contratacoes:detalhar_etp', pk=etp.pk)
 
     if request.method == 'POST':
-        form = ArquivoAnexoForm(request.POST, request.FILES) # Usa o formulário do core
+        form = ArquivoAnexoForm(request.POST, request.FILES)
         if form.is_valid():
             anexo = form.save(commit=False)
             anexo.uploaded_by = request.user
-            anexo.save() # Salva o ArquivoAnexo primeiro para ter um PK
-            etp.anexos.add(anexo) # Adiciona o anexo ao ManyToManyField do ETP
+            
+            # --- INÍCIO DA CORREÇÃO ---
+            # Aqui definimos o "pai" do anexo diretamente nele, antes de salvar.
+            anexo.content_type = ContentType.objects.get_for_model(etp) # Diz que o pai é um ETP
+            anexo.object_id = etp.pk                                     # Diz qual ETP específico é o pai
+            # --- FIM DA CORREÇÃO ---
+
+            anexo.save() # Agora salvamos o anexo, que já sabe quem é seu pai
+
+            # A linha etp.anexos.add(anexo) NÃO é mais necessária e foi removida.
+            
             messages.success(request, 'Anexo adicionado ao ETP com sucesso!')
             return redirect('contratacoes:detalhar_etp', pk=etp.pk)
         else:
@@ -574,7 +621,7 @@ def adicionar_anexo_etp(request, etp_id):
         'etp': etp,
         'titulo_pagina': f'Adicionar Anexo ao ETP: {etp.titulo}'
     }
-    return render(request, 'contratacoes/adicionar_anexo.html', context) # Reutilizar template ou criar um específico
+    return render(request, 'contratacoes/adicionar_anexo_etp.html', context)
 
 # View para adicionar anexo a um TR
 @login_required
@@ -805,3 +852,165 @@ def parse_rascunho_etp(rascunho_texto):
                 dados_etp[campo_modelo] = conteudo.strip()
 
     return dados_etp
+
+# Em SysGov_Project/contratacoes/views.py
+
+@login_required
+def processar_acao_etp(request, pk):
+    etp = get_object_or_404(ETP, pk=pk)
+    acao = request.POST.get('acao')
+
+    # Ação: Submeter para análise
+    if acao == 'submeter_analise' and etp.status == 'EM_ELABORACAO':
+        if request.user.has_perm('contratacoes.pode_submeter_etp_analise'):
+            etp.status = 'AGUARDANDO_ANALISE'
+            etp.save()
+            messages.success(request, 'ETP submetido para Análise de Requerimentos.')
+        else:
+            messages.error(request, 'Você não tem permissão para submeter este ETP.')
+
+    # Ações da Análise de Requerimentos
+    elif acao == 'aprovar_analise' and etp.status == 'AGUARDANDO_ANALISE':
+        if request.user.has_perm('contratacoes.pode_aprovar_etp_analise'):
+            etp.status = 'AGUARDANDO_ORCAMENTO'
+            etp.save()
+            messages.success(request, 'ETP aprovado pela Análise. Enviado para o Setor de Orçamento.')
+        else:
+            messages.error(request, 'Você não tem permissão para aprovar este ETP.')
+    
+    elif acao == 'recusar_analise' and etp.status == 'AGUARDANDO_ANALISE':
+        if request.user.has_perm('contratacoes.pode_recusar_etp_analise'):
+            etp.status = 'RECUSADO_ANALISE'
+            etp.save()
+            messages.warning(request, 'ETP foi recusado pela Análise e devolvido para elaboração.')
+        else:
+            messages.error(request, 'Você não tem permissão para recusar este ETP.')
+
+    # --- INÍCIO DA NOVA LÓGICA ADICIONADA ---
+    # Ações do Setor de Orçamento
+    elif acao == 'aprovar_orcamento' and etp.status == 'AGUARDANDO_ORCAMENTO':
+        if request.user.has_perm('contratacoes.pode_aprovar_etp_orcamento'):
+            etp.status = 'APROVADO' # Estado final do ETP!
+            etp.save()
+            messages.success(request, 'ETP aprovado pelo Orçamento! O processo pode continuar.')
+        else:
+            messages.error(request, 'Você não tem permissão para aprovar o orçamento deste ETP.')
+            
+    elif acao == 'recusar_orcamento' and etp.status == 'AGUARDANDO_ORCAMENTO':
+        if request.user.has_perm('contratacoes.pode_recusar_etp_orcamento'):
+            etp.status = 'RECUSADO_ORCAMENTO'
+            etp.save()
+            messages.warning(request, 'ETP foi recusado pelo Setor de Orçamento.')
+        else:
+            messages.error(request, 'Você não tem permissão para recusar o orçamento deste ETP.')
+    # --- FIM DA NOVA LÓGICA ADICIONADA ---
+
+    else:
+        messages.warning(request, 'Ação inválida ou não permitida para o status atual do ETP.')
+
+    return redirect('contratacoes:detalhar_etp', pk=etp.pk) 
+
+# Em SysGov_Project/contratacoes/views.py
+
+# ... (outras importações e views) ...
+
+@login_required
+def editar_item_catalogo(request, pk):
+    item = get_object_or_404(ItemCatalogo, pk=pk)
+    
+    if request.method == 'POST':
+        form = ItemCatalogoForm(request.POST, instance=item)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Item do Catálogo atualizado com sucesso!')
+            return redirect('contratacoes:listar_catalogo_itens')
+        else:
+            messages.error(request, 'Erro ao atualizar o item. Verifique o formulário.')
+    else: # Se a requisição for GET
+        form = ItemCatalogoForm(instance=item)
+    
+    context = {
+        'form': form,
+        'item': item,
+        'titulo_pagina': f'Editar Item: {item.nome_padronizado}',
+    }
+    return render(request, 'contratacoes/editar_item_catalogo.html', context)
+
+# Em contratacoes/views.py
+
+from .forms import ContratoForm # Adicione ContratoForm na sua lista de importações de forms
+from core.models import Processo # Adicione a importação do Processo
+
+# ... (outras views) ...
+
+@login_required
+def criar_contrato(request, processo_id):
+    processo = get_object_or_404(Processo, pk=processo_id)
+    
+    if request.method == 'POST':
+        form = ContratoForm(request.POST)
+        if form.is_valid():
+            contrato = form.save(commit=False)
+            contrato.processo_vinculado = processo # Vincula ao processo da URL
+            contrato.save()
+            messages.success(request, f"Contrato {contrato.numero_contrato}/{contrato.ano_contrato} criado com sucesso!")
+            return redirect('detalhes_processo', processo_id=processo.pk) # Volta para a página do processo
+    else:
+        form = ContratoForm()
+        
+    context = {
+        'form': form,
+        'processo': processo,
+        'titulo_pagina': f'Adicionar Contrato ao Processo {processo.numero_protocolo}'
+    }
+    return render(request, 'contratacoes/criar_contrato.html', context)
+
+# Em contratacoes/views.py
+
+@login_required
+def listar_contratos(request):
+    # Por enquanto, vamos listar todos. No futuro, podemos adicionar filtros por usuário.
+    contratos = Contrato.objects.all().order_by('-data_assinatura')
+    
+    context = {
+        'contratos': contratos,
+        'titulo_pagina': 'Gestão de Contratos'
+    }
+    return render(request, 'contratacoes/listar_contratos.html', context)
+
+# Em contratacoes/views.py
+
+@login_required
+def detalhar_contrato(request, pk):
+    contrato = get_object_or_404(Contrato, pk=pk)
+    # Buscamos os empenhos já vinculados a este contrato
+    notas_empenho = contrato.notas_empenho.all()
+
+    context = {
+        'contrato': contrato,
+        'notas_empenho': notas_empenho,
+        'titulo_pagina': f'Detalhes do Contrato {contrato.numero_contrato}/{contrato.ano_contrato}'
+    }
+    return render(request, 'contratacoes/detalhar_contrato.html', context)
+
+# Em contratacoes/views.py
+
+@login_required
+def editar_contrato(request, pk):
+    contrato = get_object_or_404(Contrato, pk=pk)
+    
+    if request.method == 'POST':
+        form = ContratoForm(request.POST, instance=contrato)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Contrato atualizado com sucesso!')
+            return redirect('contratacoes:detalhar_contrato', pk=contrato.pk)
+    else:
+        form = ContratoForm(instance=contrato)
+        
+    context = {
+        'form': form,
+        'contrato': contrato,
+        'titulo_pagina': f'Editar Contrato {contrato.numero_contrato}/{contrato.ano_contrato}'
+    }
+    return render(request, 'contratacoes/editar_contrato.html', context)

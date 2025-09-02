@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ titulo_pagina }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-5 fw-bold text-primary mb-0">{{ titulo_pagina }}</h1>
+            <p class="lead">Contratado: {{ contrato.contratado.razao_social }}</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'contratacoes:listar_contratos' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-list me-2"></i>Voltar para a Lista
+            </a>
+            <a href="{% url 'contratacoes:editar_contrato' pk=contrato.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit me-2"></i>Editar Contrato
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><h5 class="mb-0">Informações do Contrato</h5></div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">Objeto</dt><dd class="col-sm-8">{{ contrato.objeto|linebreaksbr }}</dd>
+                        <dt class="col-sm-4">Valor Total</dt><dd class="col-sm-8">R$ {{ contrato.valor_total|floatformat:2 }}</dd>
+                        <dt class="col-sm-4">Vigência</dt><dd class="col-sm-8">{{ contrato.data_inicio_vigencia|date:"d/m/Y" }} a {{ contrato.data_fim_vigencia|date:"d/m/Y" }}</dd>
+                        <dt class="col-sm-4">Data da Assinatura</dt><dd class="col-sm-8">{{ contrato.data_assinatura|date:"d/m/Y" }}</dd>
+                        <dt class="col-sm-4">Status</dt><dd class="col-sm-8"><span class="badge bg-success">{{ contrato.get_status_display }}</span></dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Notas de Empenho</h5>
+                    
+                    <a href="{% url 'financeiro:criar_empenho' contrato_id=contrato.pk %}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-plus me-1"></i> Adicionar Empenho
+                    </a>
+
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for empenho in notas_empenho %}
+                        <a href="#" class="list-group-item list-group-item-action">
+                            <strong>{{ empenho.numero_empenho }}/{{ empenho.ano_empenho }}</strong>
+                            <small class="d-block text-muted">R$ {{ empenho.valor|floatformat:2 }} em {{ empenho.data_emissao|date:"d/m/Y" }}</small>
+                        </a>
+                    {% empty %}
+                        <div class="list-group-item">
+                            <p class="text-muted mb-0">Nenhuma nota de empenho registrada.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

@@ -22,5 +22,6 @@ urlpatterns = [
     path('resultados/<int:pk>/', views.detalhar_resultado_licitacao, name='detalhar_resultado_licitacao'),
     path('resultados/', views.listar_resultados_licitacao, name='listar_resultados_licitacao'),
     path('resultados/<int:pk>/editar/', views.editar_resultado_licitacao, name='editar_resultado_licitacao'),
+    path('pregao/<int:pregao_id>/painel/', views.painel_pregao, name='painel_pregao'),
 ]
 

@@ -1,51 +1,44 @@
 {% extends 'base.html' %}
+{% load widget_tweaks %}
 
-{% block title %}Adicionar Anexo ao ETP: {{ etp.titulo }}{% endblock %}
-{% block main_title %}Adicionar Anexo ao ETP: {{ etp.titulo }}{% endblock %}
+{% block title %}{{ titulo_pagina }}{% endblock %}
 
 {% block content %}
-    <div style="background-color: #e9ecef; border: 1px solid #dee2e6; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-        <h4>Detalhes do ETP:</h4>
-        <p><strong>Título:</strong> {{ etp.titulo }}</p>
-        <p><strong>Número do Processo:</strong> {{ etp.numero_processo }}</p>
-        {# Adicione outros detalhes do ETP se desejar #}
-        <a href="{% url 'detalhar_etp' pk=etp.pk %}" style="font-size: 0.9em;">(Voltar para Detalhes do ETP)</a>
-    </div>
+<div class="container mt-4 mb-5">
+    <h1 class="display-5 fw-bold text-primary mb-2">{{ titulo_pagina }}</h1>
+    
+    {% if etp %}
+    <p class="lead mb-4">Adicionando anexo para o ETP: "{{ etp.titulo }}"</p>
+    {% elif tr %}
+    <p class="lead mb-4">Adicionando anexo para o TR: "{{ tr.titulo }}"</p>
+    {% endif %}
 
-    <h3>Upload de Anexo</h3>
-    <form method="post" enctype="multipart/form-data"> {# IMPORTANTE: Adicione enctype="multipart/form-data" para upload de arquivos #}
-        {% csrf_token %}
-        {# Exibe erros gerais do formulário (se houver) #}
-        {% if form.non_field_errors %}
-        <div class="alert alert-danger">
-            {% for error in form.non_field_errors %}
-            <p>{{ error }}</p>
-            {% endfor %}
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" novalidate>
+                {% csrf_token %}
+
+                {% for field in form %}
+                <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    {% render_field field class="form-control" %}
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                    {% for error in field.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}
+                </div>
+                {% endfor %}
+
+                <div class="mt-4 text-end">
+                    {% if etp %}
+                    <a href="{% url 'contratacoes:detalhar_etp' pk=etp.pk %}" class="btn btn-secondary">Cancelar</a>
+                    {% elif tr %}
+                    <a href="{% url 'contratacoes:detalhar_tr' pk=tr.pk %}" class="btn btn-secondary">Cancelar</a>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Salvar Anexo
+                    </button>
+                </div>
+            </form>
         </div>
-        {% endif %}
-
-        {# Renderiza todos os campos do formulário Anexo #}
-        {% for field in form %}
-            <div class="mb-3">
-                <label class="form-label">{{ field.label }}</label>
-                {{ field }}
-                {% if field.help_text %}
-                    <div class="form-text">{{ field.help_text }}</div>
-                {% endif %}
-                {% if field.errors %}
-                    <div class="text-danger small">
-                        {% for error in field.errors %}
-                            <div>{{ error }}</div>
-                        {% endfor %}
-                    </div>
-                {% endif %}
-            </div>
-        {% endfor %}
-
-        <p>
-            <button type="submit" class="button" style="background-color: #28a745;">Adicionar Anexo</button>
-            <a href="{% url 'detalhar_etp' pk=etp.pk %}" class="button" style="background-color: #6c757d;">Cancelar</a>
-        </p>
-    </form>
-
-{% endblock %}
+    </div>
+</div>
+{% endblock content %}

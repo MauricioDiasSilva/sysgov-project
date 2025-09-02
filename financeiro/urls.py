@@ -22,7 +22,11 @@ urlpatterns = [
     path('pagamentos/', views.listar_pagamentos, name='listar_pagamentos'),
     path('pagamentos/<int:pk>/', views.detalhar_pagamento, name='detalhar_pagamento'), # <<< ADICIONADO
     path('pagamentos/<int:pk>/editar/', views.editar_pagamento, name='editar_pagamento'), # <<< ADICIONADO
-    path('pagamentos/<int:pk>/xml/', views.download_pg_xml, name='download_pg_xml'), # URL para download XML (se não estava)
-    
+    path('pagamentos/<int:pk>/xml/', views.download_pg_xml, name='download_pg_xml'), # URL para download XML (se não estava)    
     path('audesp/edital/<int:edital_id>/json/', views.gerar_edital_audesp_json, name='gerar_edital_audesp_json'),
+
+    path('contrato/<int:contrato_id>/empenho/criar/', views.criar_empenho, name='criar_empenho'),
+    path('empenhos/', views.listar_empenhos, name='listar_empenhos'),
+    path('empenho/<int:pk>/', views.detalhar_empenho, name='detalhar_empenho'),
+    path('empenho/<int:pk>/editar/', views.editar_empenho, name='editar_empenho')
 ]

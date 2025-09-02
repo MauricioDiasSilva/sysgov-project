@@ -10,26 +10,19 @@ from django.utils import timezone # Para campos de data/hora
 
 # Importar os modelos da sua própria app 'licitacoes'
 from .models import (
-    Edital, Lote, ItemLicitado, ResultadoLicitacao, # EditalPublicacao e EditalItem REMOVIDOS
+    Edital, Lance, Lote, ItemLicitado, ResultadoLicitacao, # EditalPublicacao e EditalItem REMOVIDOS
     # Importar os CHOICES definidos nos modelos para usar nas views
     STATUS_EDITAL_CHOICES,
     TIPO_INSTRUMENTO_CONVOCATORIO_CHOICES, MODALIDADE_LICITACAO_CHOICES, MODO_DISPUTA_CHOICES,
-    VEICULO_PUBLICACAO_CHOICES, TIPO_BENEFICIO_CHOICES, CRITERIO_JULGAMENTO_CHOICES, ITEM_CATEGORIA_CHOICES
+    VEICULO_PUBLICACAO_CHOICES, TIPO_BENEFICIO_CHOICES, CRITERIO_JULGAMENTO_CHOICES, ITEM_CATEGORIA_CHOICES, Pregao
 )
-
+from django.db import IntegrityError
 # Importar os formulários da sua própria app 'licitacoes'
 from .forms import (
-    EditalForm, LoteForm, ItemLicitadoForm, ResultadoLicitacaoForm,
-    # Novos formulários de Edital para o AUDESP (se você os tiver definido)
-    # EditalLicitacaoForm, EditalPublicacaoForm, EditalItemForm, # REMOVIDOS
-    # EditalPublicacaoFormSet, EditalItemFormSet # REMOVIDOS
-)
+    EditalForm, LoteForm, ItemLicitadoForm, ResultadoLicitacaoForm,ParticipanteForm, LanceForm
+    )
 
-# Importar o modelo Processo do app 'core' se as views de Edital o vinculam
 from core.models import Processo
-
-
-# Formsets para Lotes e Itens (usados nas views de Edital)
 LoteFormSet = inlineformset_factory(Edital, Lote, form=LoteForm, extra=1, can_delete=True)
 ItemLicitadoFormSet = inlineformset_factory(Edital, ItemLicitado, form=ItemLicitadoForm, extra=1, can_delete=True)
 # Se você tiver itens dentro de lotes, precisaria de um formset aninhado ou outra abordagem
@@ -215,11 +208,6 @@ def licitacoes_dashboard(request):
 def registrar_resultado_licitacao(request, edital_pk):
     edital = get_object_or_404(Edital, pk=edital_pk)
 
-    # Opcional: Verificar se já existe um resultado para este edital (ou lote/item)
-    # Se você espera apenas um resultado por edital, pode redirecionar para edição.
-    # Ex: if ResultadoLicitacao.objects.filter(edital=edital).exists():
-    #        messages.info(request, "Este edital já possui um resultado registrado.")
-    #        return redirect('licitacoes:detalhar_resultado_licitacao', pk=resultado_existente.pk)
 
     if request.method == 'POST':
         form = ResultadoLicitacaoForm(request.POST)
@@ -234,8 +222,7 @@ def registrar_resultado_licitacao(request, edital_pk):
             messages.error(request, 'Erro ao registrar Resultado da Licitação. Verifique os campos.')
             print("Erros do formulário ResultadoLicitacao:", form.errors)
     else:
-        # Passar a instância do Edital para o formulário ResultadoLicitacaoForm
-        # para que o queryset de lote/item possa ser filtrado dinamicamente no __init__ do form.
+       
         form = ResultadoLicitacaoForm(edital_instance=edital)
 
     context = {
@@ -309,28 +296,107 @@ def editar_resultado_licitacao(request, pk):
     return render(request, 'licitacoes/editar_resultado_licitacao.html', context)
 
 
-# SysGov_Project/licitacoes/views.py
+# Em licitacoes/views.py
 
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-# ... (outros imports) ...
+from django.db import transaction, IntegrityError
+from django.utils import timezone
+from .models import Pregao, ParticipanteLicitacao, Lance, ResultadoLicitacao # Adicionado ResultadoLicitacao
+from .forms import ParticipanteForm, LanceForm
 
-# ... (suas views existentes) ...
+@login_required
+def painel_pregao(request, pregao_id):
+    pregao = get_object_or_404(Pregao, pk=pregao_id)
+    
+    if request.method == 'POST':
+        if 'submit_participante' in request.POST:
+            if pregao.status in ['AGENDADO', 'ABERTO_PARA_LANCES']:
+                form_participante = ParticipanteForm(request.POST)
+                if form_participante.is_valid():
+                    participante = form_participante.save(commit=False)
+                    participante.pregao = pregao
+                    try:
+                        participante.save()
+                        messages.success(request, f"Fornecedor '{participante.fornecedor.razao_social}' credenciado.")
+                    except IntegrityError:
+                        messages.error(request, 'Este fornecedor já está credenciado.')
+            else:
+                messages.error(request, 'Não é possível credenciar participantes. O pregão já foi iniciado ou finalizado.')
 
-@login_required # Apenas usuários logados podem ver esta página
-def detalhar_edital(request, pk):
-    edital = get_object_or_404(Edital, pk=pk)
+        elif 'submit_lance' in request.POST:
+            if pregao.status == 'EM_DISPUTA':
+                form_lance = LanceForm(request.POST, pregao=pregao)
+                if form_lance.is_valid():
+                    form_lance.save()
+                    messages.success(request, 'Lance registado com sucesso.')
+                else:
+                    messages.error(request, 'Erro ao registar o lance.')
+            else:
+                messages.error(request, 'Não é possível registar lances. O pregão não está em disputa.')
 
-    # NOVO: Variável de contexto para permissão
-    # Verifique se o usuário logado tem a permissão para gerar o JSON do AUDESP
-    pode_gerar_json_audesp = request.user.has_perm('financeiro.add_documentofiscal') or request.user.is_superuser
-    # Usamos 'add_documentofiscal' por enquanto, mas pode ser uma permissão mais específica.
+        elif 'acao_sessao' in request.POST:
+            acao = request.POST.get('acao_sessao')
+            if request.user == pregao.pregoeiro:
+                if acao == 'iniciar_disputa' and pregao.status in ['AGENDADO', 'ABERTO_PARA_LANCES']:
+                    pregao.status = 'EM_DISPUTA'
+                    pregao.save()
+                    messages.success(request, 'A sessão de disputa foi iniciada!')
+                elif acao == 'encerrar_sessao' and pregao.status == 'EM_DISPUTA':
+                    pregao.status = 'FINALIZADO'
+                    pregao.data_encerramento_sessao = timezone.now()
+                    pregao.save()
+                    messages.success(request, 'A sessão do pregão foi finalizada.')
+            else:
+                messages.error(request, 'Apenas o pregoeiro responsável pode controlar a sessão.')
 
+        elif 'aceitar_lance' in request.POST:
+            if request.user == pregao.pregoeiro and pregao.status == 'EM_DISPUTA':
+                with transaction.atomic():
+                    lance_id = request.POST.get('lance_id')
+                    lance_vencedor = get_object_or_404(Lance, pk=lance_id)
+                    if lance_vencedor.participante.pregao == pregao:
+                        item_licitado = lance_vencedor.item
+                        item_licitado.lances.exclude(pk=lance_vencedor.pk).update(aceito=False)
+                        lance_vencedor.aceito = True
+                        lance_vencedor.save()
+                        messages.success(request, f"Lance de R$ {lance_vencedor.valor_lance} aceite como novo vencedor.")
+            else:
+                messages.error(request, "Apenas o pregoeiro pode aceitar lances nesta fase.")
+        
+        elif 'gerar_resultados' in request.POST:
+            if request.user == pregao.pregoeiro and pregao.status == 'FINALIZADO':
+                lances_vencedores = Lance.objects.filter(participante__pregao=pregao, aceito=True)
+                if not lances_vencedores.exists():
+                    messages.warning(request, 'Nenhum lance vencedor foi selecionado para gerar resultados.')
+                else:
+                    resultados_criados = 0
+                    with transaction.atomic():
+                        for lance in lances_vencedores:
+                            ResultadoLicitacao.objects.update_or_create(
+                                edital=pregao.edital, item_licitado=lance.item,
+                                defaults={
+                                    'fornecedor_vencedor': lance.participante.fornecedor.razao_social,
+                                    'cnpj_vencedor': lance.participante.fornecedor.cnpj,
+                                    'valor_homologado': lance.valor_lance,
+                                    'data_homologacao': timezone.now().date(),
+                                    'responsavel_registro': request.user
+                                }
+                            )
+                            resultados_criados += 1
+                    messages.success(request, f'{resultados_criados} resultado(s) de licitação foram gerados/atualizados.')
+            else:
+                messages.error(request, 'Ação não permitida.')
+
+        return redirect('licitacoes:painel_pregao', pregao_id=pregao.id)
+
+    # Lógica para GET
+    participantes = pregao.participantes.all().order_by('fornecedor__razao_social')
+    itens_edital = pregao.edital.itens_diretos.all().prefetch_related('lances__participante__fornecedor')
+    form_participante = ParticipanteForm()
+    form_lance = LanceForm(pregao=pregao)
+    
     context = {
-        'edital': edital,
-        'titulo_pagina': f'Detalhes do Edital {edital.numero_edital}',
-        'pode_gerar_json_audesp': pode_gerar_json_audesp, # <<< PASSE ESTA VARIÁVEL
-        # ... (outras variáveis de contexto se houver) ...
+        'pregao': pregao, 'participantes': participantes, 'itens_edital': itens_edital,
+        'form_participante': form_participante, 'form_lance': form_lance,
+        'titulo_pagina': f"Painel do Pregão - Edital {pregao.edital.numero_edital}"
     }
-    return render(request, 'licitacoes/detalhar_edital.html', context)
+    return render(request, 'licitacoes/painel_pregao.html', context)

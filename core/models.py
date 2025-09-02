@@ -77,3 +77,65 @@ class ArquivoAnexo(models.Model):
 
     def is_xml(self):
         return self.get_file_extension() == '.xml'
+    
+# Em SysGov_Project/core/models.py
+
+# ... (seus modelos Processo e ArquivoAnexo continuam aqui em cima) ...
+
+# vvv ADICIONE O CÓDIGO ABAIXO vvv
+
+class Fornecedor(models.Model):
+    razao_social = models.CharField(
+        max_length=255,
+        verbose_name="Razão Social"
+    )
+    nome_fantasia = models.CharField(
+        max_length=255,
+        blank=True, null=True,
+        verbose_name="Nome Fantasia"
+    )
+    cnpj = models.CharField(
+        max_length=18, # Formato XX.XXX.XXX/XXXX-XX
+        unique=True,
+        verbose_name="CNPJ"
+    )
+    endereco = models.CharField(
+        max_length=255,
+        blank=True, null=True,
+        verbose_name="Endereço"
+    )
+    cidade = models.CharField(
+        max_length=100,
+        blank=True, null=True
+    )
+    estado = models.CharField(
+        max_length=2,
+        blank=True, null=True,
+        verbose_name="UF"
+        # No futuro, podemos adicionar choices com todos os estados
+    )
+    telefone = models.CharField(
+        max_length=20,
+        blank=True, null=True
+    )
+    email = models.EmailField(
+        blank=True, null=True,
+        verbose_name="E-mail de Contato"
+    )
+    dados_bancarios = models.TextField(
+        blank=True, null=True,
+        verbose_name="Dados Bancários",
+        help_text="Informações como Banco, Agência e Conta para pagamentos."
+    )
+    data_cadastro = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Data de Cadastro"
+    )
+
+    class Meta:
+        verbose_name = "Fornecedor"
+        verbose_name_plural = "Fornecedores"
+        ordering = ['razao_social']
+
+    def __str__(self):
+        return f"{self.razao_social} ({self.cnpj})"

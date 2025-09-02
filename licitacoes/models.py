@@ -4,8 +4,10 @@ from django.db import models
 from django.conf import settings
 from core.models import Processo # Importa o modelo Processo do app 'core'
 from decimal import Decimal # Para campos decimais
+from core.models import Fornecedor
 
-# --- Status possíveis para um Edital (EXISTENTE) ---
+User = settings.AUTH_USER_MODEL
+
 STATUS_EDITAL_CHOICES = [
     ('EM_ELABORACAO', 'Em Elaboração'),
     ('PUBLICADO', 'Publicado'),
@@ -341,3 +343,134 @@ class ResultadoLicitacao(models.Model):
         if self.valor_estimado_inicial and self.valor_homologado:
             self.economia_gerada = self.valor_estimado_inicial - self.valor_homologado
         super().save(*args, **kwargs)
+
+
+# Em licitacoes/models.py
+
+# ... (seus modelos Edital, Lote, ItemLicitado, etc. continuam aqui em cima) ...
+
+# vvv ADICIONE O CÓDIGO ABAIXO vvv
+
+STATUS_PREGAO_CHOICES = [
+    ('AGENDADO', 'Agendado'),
+    ('ABERTO_PARA_LANCES', 'Aberto para Lances'),
+    ('EM_DISPUTA', 'Em Disputa'),
+    ('FINALIZADO', 'Finalizado'),
+    ('SUSPENSO', 'Suspenso'),
+    ('CANCELADO', 'Cancelado'),
+]
+
+class Pregao(models.Model):
+    edital = models.OneToOneField(
+        Edital,
+        on_delete=models.CASCADE,
+        related_name='pregao',
+        verbose_name="Edital de Referência"
+    )
+    pregoeiro = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='pregoes_conduzidos',
+        verbose_name="Pregoeiro Responsável"
+    )
+    data_abertura_sessao = models.DateTimeField(
+        verbose_name="Data e Hora de Abertura da Sessão"
+    )
+    data_encerramento_sessao = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name="Data e Hora de Encerramento"
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=STATUS_PREGAO_CHOICES,
+        default='AGENDADO',
+        verbose_name="Status da Sessão"
+    )
+    observacoes = models.TextField(
+        blank=True, null=True,
+        verbose_name="Observações e Ata da Sessão"
+    )
+
+    class Meta:
+        verbose_name = "Pregão (Sessão de Disputa)"
+        verbose_name_plural = "Pregões (Sessões de Disputa)"
+        ordering = ['-data_abertura_sessao']
+
+    def __str__(self):
+        return f"Pregão do Edital {self.edital.numero_edital} - Status: {self.get_status_display()}"
+    
+
+
+class ParticipanteLicitacao(models.Model):
+    pregao = models.ForeignKey(
+        Pregao,
+        on_delete=models.CASCADE,
+        related_name='participantes',
+        verbose_name="Pregão"
+    )
+    fornecedor = models.ForeignKey(
+        Fornecedor,
+        on_delete=models.CASCADE,
+        related_name='participacoes',
+        verbose_name="Fornecedor Licitante"
+    )
+    data_credenciamento = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Data de Credenciamento"
+    )
+    desclassificado = models.BooleanField(
+        default=False,
+        verbose_name="Desclassificado?"
+    )
+    motivo_desclassificacao = models.TextField(
+        blank=True, null=True,
+        verbose_name="Motivo da Desclassificação"
+    )
+
+    class Meta:
+        verbose_name = "Participante da Licitação"
+        verbose_name_plural = "Participantes da Licitação"
+        # Garante que um fornecedor só possa se inscrever uma vez por pregão
+        unique_together = ('pregao', 'fornecedor')
+        ordering = ['data_credenciamento']
+
+    def __str__(self):
+        return f"{self.fornecedor.razao_social} no Pregão do Edital {self.pregao.edital.numero_edital}"
+    
+
+
+
+class Lance(models.Model):
+    participante = models.ForeignKey(
+        ParticipanteLicitacao,
+        on_delete=models.CASCADE,
+        related_name='lances',
+        verbose_name="Participante"
+    )
+    item = models.ForeignKey(
+        ItemLicitado,
+        on_delete=models.CASCADE,
+        related_name='lances',
+        verbose_name="Item do Edital"
+    )
+    valor_lance = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name="Valor do Lance"
+    )
+    data_lance = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Data e Hora do Lance"
+    )
+    aceito = models.BooleanField(
+        default=False,
+        verbose_name="Lance Vencedor?"
+    )
+
+    class Meta:
+        verbose_name = "Lance"
+        verbose_name_plural = "Lances"
+        ordering = ['item', 'valor_lance'] # Ordena por item e depois pelo menor valor
+
+    def __str__(self):
+        return f"Lance de R$ {self.valor_lance} para o item '{self.item.descricao_item}'"

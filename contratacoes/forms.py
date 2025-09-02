@@ -4,7 +4,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from .models import (
     ETP, TR, PCA, ItemPCA, PesquisaPreco, ParecerTecnico,
-    ItemCatalogo, RequisitoPadrao
+    ItemCatalogo, RequisitoPadrao, Contrato
 )
 from ckeditor.widgets import CKEditorWidget
 
@@ -25,14 +25,10 @@ class ItemCatalogoForm(forms.ModelForm):
             'preco_historico_medio': 'Preço Histórico Médio (R$)',
         }
 
-# Em SysGov_Project/contratacoes/forms.py
-
-# ... (outras importações e forms) ...
 
 class ParecerTecnicoForm(forms.ModelForm):
     class Meta:
         model = ParecerTecnico
-        # Definimos os campos explicitamente para ter mais controle
         fields = ['conteudo', 'autor']
 
     # Este __init__ é útil para aplicar a classe CSS em todos os campos
@@ -56,7 +52,7 @@ class ParecerTecnicoForm(forms.ModelForm):
         # Se começou a preencher, torna os campos obrigatórios
         errors = {}
         if not cleaned_data.get('conteudo'):
-            errors['conteudo'] = 'O conteúdo do parecer é obrigatório se a linha for preenchida.'
+            errors['conteudo'] = 'O conteúdo do parecer é obrigatório se a linha for pre-fllenchida.'
         if not cleaned_data.get('autor'):
             errors['autor'] = 'O autor do parecer é obrigatório se a linha for preenchida.'
             
@@ -65,43 +61,34 @@ class ParecerTecnicoForm(forms.ModelForm):
             
         return cleaned_data
 
-# SUBSTITUA A SUA CLASSE DE PESQUISA DE PREÇO POR ESTA:
+
 class PesquisaPrecoForm(forms.ModelForm):
     class Meta:
         model = PesquisaPreco
         fields = ['fornecedor', 'valor_cotado', 'data_pesquisa']
-        widgets = {
-            'data_pesquisa': forms.DateInput(attrs={'type': 'date'}),
-        }
+        widgets = { 'data_pesquisa': forms.DateInput(attrs={'type': 'date'}) }
         labels = {
-            'fornecedor': 'Fornecedor / Fonte da Pesquisa',
+            'fornecedor': 'Fornecedor / Fonte',
             'valor_cotado': 'Valor Cotado (R$)',
             'data_pesquisa': 'Data da Pesquisa',
         }
 
     def clean(self):
         cleaned_data = super().clean()
-        
-        # Esta lógica verifica se o usuário digitou qualquer coisa no formulário.
         has_data = any(cleaned_data.get(field) for field in self.fields if field != 'DELETE')
-        
-        # Se não há dados, o Django pode ignorar este formulário em branco.
         if not has_data:
-            return cleaned_data
-
-        # Se houver qualquer dado, então todos os campos se tornam obrigatórios.
+            return cleaned_data # Ignora se estiver em branco
         errors = {}
         if not cleaned_data.get('fornecedor'):
-            errors['fornecedor'] = 'Este campo é obrigatório se a linha for preenchida.'
+            errors['fornecedor'] = 'Este campo é obrigatório.'
         if not cleaned_data.get('valor_cotado'):
-            errors['valor_cotado'] = 'Este campo é obrigatório se a linha for preenchida.'
+            errors['valor_cotado'] = 'Este campo é obrigatório.'
         if not cleaned_data.get('data_pesquisa'):
-            errors['data_pesquisa'] = 'Este campo é obrigatório se a linha for preenchida.'
-
+            errors['data_pesquisa'] = 'Este campo é obrigatório.'
         if errors:
             raise ValidationError(errors)
-
         return cleaned_data
+    
 
 class ETPForm(forms.ModelForm):
     class Meta:
@@ -211,4 +198,23 @@ class ItemPCAForm(forms.ModelForm):
             'descricao_item': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
             'valor_estimado_pca': forms.NumberInput(attrs={'class': 'form-control'}),
             'unidade_requisitante': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+
+
+class ContratoForm(forms.ModelForm):
+    class Meta:
+        model = Contrato
+        # Excluímos campos que serão preenchidos automaticamente pela view
+        exclude = ['processo_vinculado', 'data_criacao']
+        widgets = {
+            'licitacao_origem': forms.Select(attrs={'class': 'form-select'}),
+            'contratado': forms.Select(attrs={'class': 'form-select'}),
+            'numero_contrato': forms.TextInput(attrs={'class': 'form-control'}),
+            'ano_contrato': forms.NumberInput(attrs={'class': 'form-control'}),
+            'objeto': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+            'valor_total': forms.NumberInput(attrs={'class': 'form-control'}),
+            'data_assinatura': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'data_inicio_vigencia': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'data_fim_vigencia': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
         }

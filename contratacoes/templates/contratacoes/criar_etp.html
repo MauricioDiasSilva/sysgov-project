@@ -13,46 +13,29 @@
         <div class="card shadow-sm mb-4">
             <div class="card-header"><h5 class="mb-0">Dados Gerais</h5></div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-8 mb-3">
-                        <label class="form-label">{{ form.titulo.label }}</label>
-                        {% render_field form.titulo class="form-control" %}
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label">{{ form.numero_processo.label }}</label>
-                        {% render_field form.numero_processo class="form-control" %}
-                    </div>
+                {% for field in form %}{% if field.name in "titulo,numero_processo,setor_demandante,item_pca_vinculado" %}
+                <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    {% render_field field class="form-control" %}
                 </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">{{ form.setor_demandante.label }}</label>
-                        {% render_field form.setor_demandante class="form-control" %}
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">{{ form.item_pca_vinculado.label }}</label>
-                        {% render_field form.item_pca_vinculado class="form-select" %}
-                    </div>
-                </div>
+                {% endif %}{% endfor %}
             </div>
         </div>
 
         <div class="card shadow-sm mb-4">
             <div class="card-header"><h5 class="mb-0">Detalhamento do Estudo</h5></div>
             <div class="card-body">
-                {% for field in form %}
-                    {% if field.name not in "titulo,numero_processo,setor_demandante,item_pca_vinculado" %}
-                        <div class="mb-3">
-                            <label class="form-label">{{ field.label }}</label>
-                            {% render_field field class="form-control" rows="4" %}
-                        </div>
-                    {% endif %}
-                {% endfor %}
+                {% for field in form %}{% if field.name not in "titulo,numero_processo,setor_demandante,item_pca_vinculado" %}
+                <div class="mb-3">
+                    <label class="form-label">{{ field.label }}</label>
+                    {% render_field field class="form-control" rows="4" %}
+                </div>
+                {% endif %}{% endfor %}
             </div>
         </div>
 
         <h3 class="mt-5">Pesquisas de Preço</h3>
         <hr>
-
         {{ pesquisas_formset.management_form }}
         <div id="pesquisa-formset-container">
             {% for form in pesquisas_formset %}
@@ -67,7 +50,6 @@
             </div>
             {% endfor %}
         </div>
-
         <div id="pesquisa-empty-form" class="d-none">
             <div class="card mb-3 formset-form">
                 <div class="card-body">
@@ -79,12 +61,41 @@
                 </div>
             </div>
         </div>
-
         <button type="button" class="btn btn-outline-secondary mb-4" id="add-pesquisa-btn">
             <i class="fas fa-plus me-2"></i>Adicionar Pesquisa de Preço
         </button>
 
-        <div class="d-grid gap-2">
+        <h3 class="mt-5">Pareceres Técnicos</h3>
+        <hr>
+        {{ pareceres_formset.management_form }}
+        <div id="parecer-formset-container">
+            {% for form in pareceres_formset %}
+            <div class="card mb-3 formset-form">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-2">{% render_field form.autor class="form-control" placeholder="Autor do Parecer" %}</div>
+                        <div class="col-md-8 mb-2">{% render_field form.conteudo class="form-control" placeholder="Conteúdo do Parecer" rows="2" %}</div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div id="parecer-empty-form" class="d-none">
+            <div class="card mb-3 formset-form">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-2">{% render_field pareceres_formset.empty_form.autor class="form-control" placeholder="Autor do Parecer" %}</div>
+                        <div class="col-md-8 mb-2">{% render_field pareceres_formset.empty_form.conteudo class="form-control" placeholder="Conteúdo do Parecer" rows="2" %}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <button type="button" class="btn btn-outline-secondary mb-4" id="add-parecer-btn">
+            <i class="fas fa-plus me-2"></i>Adicionar Parecer Técnico
+        </button>
+
+
+        <div class="d-grid gap-2 mt-4">
             <button type="submit" class="btn btn-primary btn-lg">Salvar ETP</button>
         </div>
     </form>
@@ -94,17 +105,33 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // --- LÓGICA PARA O FORMSET DE PESQUISAS DE PREÇO ---
     const pesquisaContainer = document.getElementById('pesquisa-formset-container');
-    const addButton = document.getElementById('add-pesquisa-btn');
-    const totalFormsInput = document.getElementById('id_pesquisas-TOTAL_FORMS');
-    const emptyFormTemplate = document.getElementById('pesquisa-empty-form').innerHTML;
+    const addPesquisaButton = document.getElementById('add-pesquisa-btn');
+    const totalPesquisaFormsInput = document.getElementById('id_pesquisas-TOTAL_FORMS');
+    const emptyPesquisaFormTemplate = document.getElementById('pesquisa-empty-form').innerHTML;
 
-    if (addButton) {
-        addButton.addEventListener('click', function() {
-            let formIndex = parseInt(totalFormsInput.value);
-            const newFormHTML = emptyFormTemplate.replace(/__prefix__/g, formIndex);
+    if (addPesquisaButton) {
+        addPesquisaButton.addEventListener('click', function() {
+            let formIndex = parseInt(totalPesquisaFormsInput.value);
+            const newFormHTML = emptyPesquisaFormTemplate.replace(/__prefix__/g, formIndex);
             pesquisaContainer.insertAdjacentHTML('beforeend', newFormHTML);
-            totalFormsInput.value = formIndex + 1;
+            totalPesquisaFormsInput.value = formIndex + 1;
+        });
+    }
+
+    // --- NOVA LÓGICA PARA O FORMSET DE PARECERES TÉCNICOS ---
+    const parecerContainer = document.getElementById('parecer-formset-container');
+    const addParecerButton = document.getElementById('add-parecer-btn');
+    const totalParecerFormsInput = document.getElementById('id_pareceres-TOTAL_FORMS');
+    const emptyParecerFormTemplate = document.getElementById('parecer-empty-form').innerHTML;
+
+    if (addParecerButton) {
+        addParecerButton.addEventListener('click', function() {
+            let formIndex = parseInt(totalParecerFormsInput.value);
+            const newFormHTML = emptyParecerFormTemplate.replace(/__prefix__/g, formIndex);
+            parecerContainer.insertAdjacentHTML('beforeend', newFormHTML);
+            totalParecerFormsInput.value = formIndex + 1;
         });
     }
 });

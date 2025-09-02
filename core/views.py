@@ -24,7 +24,6 @@ from django.conf import settings # Importar settings para acessar STATIC_ROOT ou
 import os
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, Http404
-from .models import ArquivoAnexo # Certifique-se de que ArquivoAnexo está importado
 
 def visualizar_anexo_pdf(request, anexo_id):
     anexo = get_object_or_404(ArquivoAnexo, pk=anexo_id)
@@ -57,10 +56,22 @@ def visualizar_anexo_pdf(request, anexo_id):
 
 
 
-def home_view(request):
-    # Você pode adicionar dados aqui para o dashboard, se precisar.
-    # Por enquanto, o dashboard usa apenas user.is_authenticated para exibir botões.
-    return render(request, 'core/home.html')
+def home_view(request): # O nome da sua view pode ser 'home_view', ajuste se necessário
+    dashboard_stats = None
+    if request.user.is_authenticated:
+        # Calcule as estatísticas
+        dashboard_stats = {
+            'processos_em_analise': Processo.objects.filter(status='EM_ANALISE').count(),
+            'licitacoes_abertas': Edital.objects.filter(status='ABERTO').count(),
+            'contratos_vigentes': Contrato.objects.filter(status='VIGENTE').count(),
+            # A lógica de pagamentos pendentes pode variar, este é um exemplo
+            'pagamentos_pendentes': Pagamento.objects.exclude(status='PAGO').count() if hasattr(Pagamento, 'status') else 0,
+        }
+
+    context = {
+        'dashboard_stats': dashboard_stats
+    }
+    return render(request, 'core/home.html', context)
 
 # ... (suas outras views)
 # View para a página "Meus Processos"
@@ -94,24 +105,57 @@ def criar_processo_view(request):
 
 # SysGov_Project/core/views.py
 
+# Em SysGov_Project/core/views.py
+
+from django.shortcuts import render, get_object_or_404
+from django.contrib.contenttypes.models import ContentType
+from .models import Processo, ArquivoAnexo
+
+# Importe os modelos dos outros apps para poder encontrá-los
+from contratacoes.models import ETP, TR, Contrato
+from licitacoes.models import Edital
+
 @login_required(login_url='/accounts/login/')
 def detalhes_processo_view(request, processo_id):
     processo = get_object_or_404(Processo, id=processo_id)
     
-    # <<< ATENÇÃO: BUSCA CORRETA DOS ARQUIVOANEXO VINCULADOS AO PROCESSO >>>
-    # Obtenha o ContentType do modelo Processo
+    # Busca o ETP associado (se existir)
+    try:
+        etp = processo.etp_documento
+    except ETP.DoesNotExist:
+        etp = None
+
+    # Busca o TR associado (se existir)
+    try:
+        tr = processo.tr_documento
+    except TR.DoesNotExist:
+        tr = None
+        
+    # Busca o Edital associado (se existir)
+    try:
+        # Nota: 'edital_licitacao' é um exemplo de related_name. Ajuste se o seu for diferente.
+        edital = processo.edital_licitacao
+    except Edital.DoesNotExist:
+        edital = None
+
+    # Busca TODOS os contratos vinculados a este processo
+    contratos = processo.contratos.all()
+
+    # Busca os anexos genéricos do processo
     processo_content_type = ContentType.objects.get_for_model(Processo)
-    
-    # Filtra ArquivoAnexo onde content_type é o de Processo e object_id é o ID do Processo atual
     anexos_do_processo = ArquivoAnexo.objects.filter(
         content_type=processo_content_type,
         object_id=processo.id
-    ).order_by('-data_upload') # Ordenar os anexos pelo mais recente
+    ).order_by('-data_upload')
 
     context = {
         'processo': processo,
-        'titulo_pagina': f'Detalhes do Processo {processo.numero_protocolo if processo.numero_protocolo else "N/A"}',
-        'anexos_do_processo': anexos_do_processo, # <<< PASSA A LISTA DE ANEXOS AO TEMPLATE
+        'etp': etp,
+        'tr': tr,
+        'edital': edital,
+        'contratos': contratos,
+        'anexos_do_processo': anexos_do_processo,
+        'titulo_pagina': f"Painel do Processo {processo.numero_protocolo or ''}"
     }
     return render(request, 'core/detalhes_processo.html', context)
 
@@ -205,5 +249,73 @@ def render_arquivo_anexo_detail_snippet(request, pk):
     html_content = render_to_string('core/snippets/arquivo_anexo_detail_snippet.html', {'anexo': anexo}, request=request)
     return HttpResponse(html_content)
 
+# Em core/views.py
+from .forms import FornecedorForm # Adicione esta importação
+from .models import Fornecedor    # Adicione esta importação
+
+# ... (outras views) ...
+
+@login_required
+def listar_fornecedores(request):
+    fornecedores = Fornecedor.objects.all().order_by('razao_social')
+    context = {
+        'fornecedores': fornecedores,
+        'titulo_pagina': 'Cadastro de Fornecedores'
+    }
+    return render(request, 'core/listar_fornecedores.html', context)
+
+@login_required
+def criar_fornecedor(request):
+    if request.method == 'POST':
+        form = FornecedorForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Fornecedor cadastrado com sucesso!')
+            return redirect('listar_fornecedores')
+    else:
+        form = FornecedorForm()
+
+    context = {
+        'form': form,
+        'titulo_pagina': 'Cadastrar Novo Fornecedor'
+    }
+    return render(request, 'core/criar_fornecedor.html', context)
 
 
+# Em core/views.py
+
+@login_required
+def detalhar_fornecedor(request, pk):
+    fornecedor = get_object_or_404(Fornecedor, pk=pk)
+    # Buscamos os contratos e empenhos relacionados a este fornecedor
+    contratos = fornecedor.contratos.all()
+    empenhos = fornecedor.empenhos.all()
+    context = {
+        'fornecedor': fornecedor,
+        'contratos': contratos,
+        'empenhos': empenhos,
+        'titulo_pagina': f'Detalhes de {fornecedor.razao_social}'
+    }
+    return render(request, 'core/detalhar_fornecedor.html', context)
+
+
+# Em core/views.py
+
+@login_required
+def editar_fornecedor(request, pk):
+    fornecedor = get_object_or_404(Fornecedor, pk=pk)
+    if request.method == 'POST':
+        form = FornecedorForm(request.POST, instance=fornecedor)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Dados do fornecedor atualizados com sucesso!')
+            return redirect('detalhar_fornecedor', pk=fornecedor.pk)
+    else:
+        form = FornecedorForm(instance=fornecedor)
+
+    context = {
+        'form': form,
+        'fornecedor': fornecedor,
+        'titulo_pagina': 'Editar Fornecedor'
+    }
+    return render(request, 'core/editar_fornecedor.html', context)

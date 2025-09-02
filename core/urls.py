@@ -20,5 +20,10 @@ urlpatterns = [
     path('api/df/<int:pk>/render-html/', views.render_df_detail_snippet, name='api_df_detail_snippet'),
     path('api/pagamento/<int:pk>/render-html/', views.render_pagamento_detail_snippet, name='api_pagamento_detail_snippet'),
     path('api/arquivo_anexo/<int:pk>/render-html/', views.render_arquivo_anexo_detail_snippet, name='api_arquivo_anexo_detail_snippet'),
+    
+    path('fornecedores/', views.listar_fornecedores, name='listar_fornecedores'),
+    path('fornecedores/novo/', views.criar_fornecedor, name='criar_fornecedor'),
+    path('fornecedores/<int:pk>/', views.detalhar_fornecedor, name='detalhar_fornecedor'),
+    path('fornecedores/<int:pk>/editar/', views.editar_fornecedor, name='editar_fornecedor'),
     # FIM DA ADIÇÃO <<<
 ]
