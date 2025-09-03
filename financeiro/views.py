@@ -44,6 +44,20 @@ def listar_pagamentos(request):
     context = {'pagamentos': pagamentos, 'titulo_pagina': 'Listar Pagamentos'}
     return render(request, 'financeiro/listar_pagamentos.html', context)
 
+@login_required
+def listar_empenhos(request):
+    """Lista todas as notas de empenho emitidas."""
+    empenhos = NotaEmpenho.objects.all().order_by('-data_emissao')
+    context = {
+        'empenhos': empenhos,
+        'titulo_pagina': 'Notas de Empenho Emitidas'
+    }
+    return render(request, 'financeiro/listar_empenhos.html', context)
+
+
+# --- GESTÃO DE DOCUMENTOS FISCAIS ---
+
+
 # --- Views de Detalhes e Edição ---
 @login_required
 def detalhar_documento_fiscal(request, pk):
@@ -54,6 +68,29 @@ def detalhar_documento_fiscal(request, pk):
         return redirect('financeiro:dashboard_financeiro')
     context = {'documento': df, 'titulo_pagina': f'Detalhes DF: {df.documento_fiscal_numero}'}
     return render(request, 'financeiro/detalhar_documento.html', context)
+
+@login_required
+def criar_documento_fiscal(request, contrato_id):
+    """Cria um novo Documento Fiscal a partir de um Contrato."""
+    contrato = get_object_or_404(Contrato, pk=contrato_id)
+    if request.method == 'POST':
+        form = DocumentoFiscalForm(request.POST)
+        if form.is_valid():
+            doc_fiscal = form.save(commit=False)
+            doc_fiscal.contrato_vinculado = contrato
+            doc_fiscal.processo_vinculado = contrato.processo_vinculado
+            doc_fiscal.fornecedor = contrato.contratado
+            doc_fiscal.save()
+            messages.success(request, f"Documento Fiscal nº {doc_fiscal.documento_fiscal_numero} registrado!")
+            return redirect('financeiro:detalhar_documento_fiscal', pk=doc_fiscal.pk)
+    else:
+        form = DocumentoFiscalForm()
+    context = {
+        'form': form, 'contrato': contrato,
+        'titulo_pagina': f'Registrar NF para o Contrato {contrato.numero_contrato}'
+    }
+    return render(request, 'financeiro/criar_documento_fiscal.html', context)
+
 
 @login_required
 @permission_required('financeiro.change_documentofiscal', raise_exception=True)
@@ -89,6 +126,34 @@ def detalhar_pagamento(request, pk):
     context = {'pagamento': pg, 'titulo_pagina': f'Detalhes Pagto: {pg.documento_fiscal_numero}'}
     return render(request, 'financeiro/detalhar_pagamento.html', context)
 
+
+@login_required
+def criar_pagamento(request, doc_fiscal_id):
+    """Cria um novo Pagamento a partir de um Documento Fiscal."""
+    doc_fiscal = get_object_or_404(DocumentoFiscal, pk=doc_fiscal_id)
+    if request.method == 'POST':
+        form = PagamentoForm(request.POST)
+        if form.is_valid():
+            pagamento = form.save(commit=False)
+            pagamento.documento_fiscal = doc_fiscal
+            # Preenche os campos redundantes a partir do documento pai para manter a estrutura do XML
+            pagamento.processo_vinculado = doc_fiscal.processo_vinculado
+            pagamento.codigo_ajuste = doc_fiscal.codigo_ajuste
+            pagamento.documento_fiscal_numero = doc_fiscal.documento_fiscal_numero
+            # ... adicione outros campos se necessário
+            pagamento.save()
+            messages.success(request, f"Pagamento de R$ {pagamento.nota_fiscal_valor_pago} registrado com sucesso!")
+            return redirect('financeiro:detalhar_documento_fiscal', pk=doc_fiscal.pk)
+    else:
+        form = PagamentoForm(initial={'nota_fiscal_valor_pago': doc_fiscal.documento_fiscal_valor})
+    context = {
+        'form': form, 'doc_fiscal': doc_fiscal,
+        'titulo_pagina': f'Registrar Pagamento para a NF {doc_fiscal.documento_fiscal_numero}'
+    }
+    return render(request, 'financeiro/criar_pagamento.html', context)
+
+
+
 @login_required
 @permission_required('financeiro.change_pagamento', raise_exception=True)
 def editar_pagamento(request, pk):
@@ -113,6 +178,55 @@ def editar_pagamento(request, pk):
         'titulo_pagina': f'Editar Pagamento: {pg.documento_fiscal_numero}'
     }
     return render(request, 'financeiro/editar_pagamento.html', context)
+
+
+# --- GESTÃO DE NOTAS DE EMPENHO ---
+
+@login_required
+def criar_empenho(request, contrato_id):
+    """Cria uma nova Nota de Empenho a partir de um Contrato."""
+    contrato = get_object_or_404(Contrato, pk=contrato_id)
+    if request.method == 'POST':
+        form = NotaEmpenhoForm(request.POST)
+        if form.is_valid():
+            empenho = form.save(commit=False)
+            empenho.contrato = contrato
+            empenho.fornecedor = contrato.contratado
+            empenho.save()
+            messages.success(request, f"Nota de Empenho {empenho.numero_empenho}/{empenho.ano_empenho} criada!")
+            return redirect('contratacoes:detalhar_contrato', pk=contrato.pk)
+    else:
+        form = NotaEmpenhoForm()
+    context = {
+        'form': form, 'contrato': contrato,
+        'titulo_pagina': f'Adicionar Empenho ao Contrato {contrato.numero_contrato}'
+    }
+    return render(request, 'financeiro/criar_empenho.html', context)
+
+@login_required
+def detalhar_empenho(request, pk):
+    empenho = get_object_or_404(NotaEmpenho, pk=pk)
+    context = {'empenho': empenho}
+    return render(request, 'financeiro/detalhar_empenho.html', context)
+
+@login_required
+def editar_empenho(request, pk):
+    empenho = get_object_or_404(NotaEmpenho, pk=pk)
+    if request.method == 'POST':
+        form = NotaEmpenhoForm(request.POST, instance=empenho)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Nota de Empenho atualizada com sucesso!')
+            return redirect('financeiro:detalhar_empenho', pk=empenho.pk)
+    else:
+        form = NotaEmpenhoForm(instance=empenho)
+    context = {
+        'form': form, 'empenho': empenho,
+        'titulo_pagina': f'Editar Empenho {empenho.numero_empenho}/{empenho.ano_empenho}'
+    }
+    return render(request, 'financeiro/editar_empenho.html', context)
+
+
 
 # --- Views de Criação e Vinculação ---
 @login_required

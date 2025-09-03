@@ -16,6 +16,7 @@
                     <a class="nav-link" href="{% url 'meus_processos' %}">Meus Processos</a>
                 </li>
 
+                <!-- MENU DE CONTRATAÇÕES (ATUALIZADO) -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbarContratacoes" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         Contratações
@@ -25,10 +26,16 @@
                         <li><a class="dropdown-item" href="{% url 'contratacoes:listar_trs' %}">Listar TRs</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="{% url 'contratacoes:listar_contratos' %}">Listar Contratos</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <!-- LINK DA IA ADICIONADO AQUI -->
+                        <li><a class="dropdown-item" href="{% url 'contratacoes:gerar_etp_ia' %}">
+                            <i class="fas fa-magic text-primary me-2"></i>Criar ETP com Assistente de IA
+                        </a></li>
                     </ul>
                 </li>
 
-                <li class="nav-item dropdown">
+                <!-- ... (o resto dos seus menus continua aqui, sem alterações) ... -->
+                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbarLicitacoes" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         Licitações
                     </a>
@@ -36,7 +43,6 @@
                         <li><a class="dropdown-item" href="{% url 'licitacoes:listar_editais' %}">Listar Editais</a></li>
                     </ul>
                 </li>
-
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbarFinanceiro" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         Financeiro
@@ -47,7 +53,6 @@
                         <li><a class="dropdown-item" href="{% url 'financeiro:listar_pagamentos' %}">Pagamentos</a></li>
                     </ul>
                 </li>
-                
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" id="navbarCadastros" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                         Cadastros
@@ -57,10 +62,42 @@
                         <li><a class="dropdown-item" href="{% url 'contratacoes:listar_catalogo_itens' %}">Catálogo de Itens</a></li>
                     </ul>
                 </li>
-
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarAudesp" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        AUDESP
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="navbarAudesp">
+                        <li><a class="dropdown-item" href="{% url 'integracao_audesp:painel_audesp' %}">Painel de Submissão</a></li>
+                        <li><a class="dropdown-item" href="{% url 'integracao_audesp:listar_submissoes_audesp' %}">Histórico de Submissões</a></li>
+                    </ul>
+                </li>
             </ul>
+            <!-- Lado direito do Navbar -->
             <ul class="navbar-nav">
-                </ul>
+                {% if user.is_authenticated %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle me-1"></i> Olá, {{ user.username }}!
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserDropdown">
+                            <li><a class="dropdown-item" href="{% url 'admin:index' %}">Painel Admin</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <form method="post" action="{% url 'account_logout' %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="dropdown-item">
+                                        <i class="fas fa-sign-out-alt me-2"></i>Sair
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'account_login' %}">Entrar</a>
+                    </li>
+                {% endif %}
+            </ul>
         </div>
     </div>
 </nav>

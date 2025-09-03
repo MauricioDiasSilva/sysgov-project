@@ -7,8 +7,11 @@ app_name = 'integracao_audesp'
 
 urlpatterns = [
     # Módulo: Histórico de Submissões AUDESP (Ponto de Entrada)
+    
+    path('painel/', views.painel_audesp_view, name='painel_audesp'),
     path('submissoes/', views.listar_submissoes_audesp, name='listar_submissoes_audesp'),
-
+    path('audesp/edital/<int:edital_id>/json/', views.gerar_edital_audesp_json, name='gerar_edital_audesp_json'),
+    path('audesp/etp/<int:etp_id>/json/', views.gerar_etp_audesp_json, name='gerar_etp_audesp_json'),
     # -----------------------------------------------------------
     # CRUD e Geração de JSON para: AUDESP Ajustes Contratuais
     # (Representa formalizações, contratos, aditivos para o AUDESP)

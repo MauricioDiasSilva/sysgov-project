@@ -20,7 +20,7 @@
                         <td>{{ fornecedor.cnpj }}</td>
                         <td>{{ fornecedor.email|default:'-' }}</td>
                         <td>
-                            <a href="#" class="btn btn-sm btn-outline-primary disabled">Detalhes</a>
+                            <a href="{% url 'detalhar_fornecedor' fornecedor.pk %}" class="btn btn-sm btn-outline-primary">Detalhes</a>
                         </td>
                     </tr>
                     {% empty %}

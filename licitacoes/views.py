@@ -117,16 +117,6 @@ def criar_edital(request, processo_id=None):
 def editar_edital(request, pk):
     edital = get_object_or_404(Edital, pk=pk)
 
-    # Lógica de permissão/status de edição (similar ao ETP)
-    # if edital.autor != request.user and not request.user.is_superuser:
-    #   messages.error(request, 'Você não tem permissão para editar este Edital.')
-    #   return redirect('licitacoes:detalhar_edital', pk=edital.pk)
-    # if edital.status in ['HOMOLOGADO', 'CANCELADO', 'FRACASSADO'] and not request.user.is_superuser:
-    #   messages.warning(request, 'Este Edital está em status final. Edições são limitadas.')
-    #   if request.method == 'POST':
-    #       messages.error(request, 'Não é possível editar Edital em status final.')
-    #       return redirect('licitacoes:detalhar_edital', pk=edital.pk)
-
     if request.method == 'POST':
         form = EditalForm(request.POST, instance=edital) # Usando o EditalForm original
         # Se você quiser usar os novos forms do AUDESP, mude para EditalLicitacaoForm
@@ -159,9 +149,7 @@ def editar_edital(request, pk):
             print("====================================")
     else: # GET request
         form = EditalForm(instance=edital) # Usando o EditalForm original
-        # Se você quiser usar os novos forms do AUDESP, mude para EditalLicitacaoForm
-        # form = EditalLicitacaoForm(instance=edital)
-
+  
         lotes_formset = LoteFormSet(instance=edital, prefix='lotes')
         itens_formset = ItemLicitadoFormSet(instance=edital, prefix='itens')
 
@@ -184,7 +172,7 @@ def detalhar_edital(request, pk):
     }
     return render(request, 'licitacoes/detalhar_edital.html', context)
 
-# Você pode ter outras views para Lote, ItemLicitado, ResultadoLicitacao aqui.
+
 
 # Nova view para o dashboard de licitações
 @login_required
@@ -235,11 +223,6 @@ def registrar_resultado_licitacao(request, edital_pk):
 @login_required
 def detalhar_resultado_licitacao(request, pk):
     resultado = get_object_or_404(ResultadoLicitacao, pk=pk)
-    # Opcional: Verificação de permissão do usuário para ver o resultado,
-    # pode ser via edital.processo_vinculado.usuario ou outras regras.
-    # if resultado.edital.processo_vinculado.usuario != request.user and not request.user.is_superuser:
-    #     messages.error(request, "Você não tem permissão para visualizar este resultado.")
-    #     return redirect('licitacoes:dashboard_licitacoes') # Ou uma página de erro
 
     context = {
         'resultado': resultado,

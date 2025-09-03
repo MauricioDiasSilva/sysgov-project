@@ -319,28 +319,28 @@ def listar_trs(request):
     }
     return render(request, 'contratacoes/listar_trs.html', context)
 
+# SysGov_Project/contratacoes/views.py
+
 @login_required
 def criar_tr(request, etp_id=None, processo_id=None):
     etp_origem = None
     processo_core = None
 
+    # Sua lógica para encontrar o ETP ou o Processo (MANTIDA, ESTÁ PERFEITA)
     if etp_id:
         etp_origem = get_object_or_404(ETP, id=etp_id)
-        # Se já existe um TR para este ETP, redirecione para edição
         if hasattr(etp_origem, 'termo_referencia'):
             messages.info(request, "Este ETP já possui um TR. Você será redirecionado para editá-lo.")
             return redirect('contratacoes:editar_tr', pk=etp_origem.termo_referencia.pk)
-        # Se um ETP é fornecido, use o processo vinculado a ele
         if etp_origem.processo_vinculado:
             processo_core = etp_origem.processo_vinculado
-    elif processo_id: # Permite criar TR diretamente a partir de um processo, sem ETP
+    elif processo_id:
         processo_core = get_object_or_404(Processo, id=processo_id)
-        # Opcional: Se já existe um TR vinculado a este Processo, redirecione para editá-lo
         if hasattr(processo_core, 'tr_documento'):
             messages.info(request, "Este processo já possui um TR. Você será redirecionado para editá-lo.")
             return redirect('contratacoes:editar_tr', pk=processo_core.tr_documento.pk)
 
-
+    # Sua lógica de POST para salvar o formulário (MANTIDA, ESTÁ PERFEITA)
     if request.method == 'POST':
         form = TRForm(request.POST)
         if form.is_valid():
@@ -349,31 +349,37 @@ def criar_tr(request, etp_id=None, processo_id=None):
             if etp_origem:
                 tr.etp_origem = etp_origem
             if processo_core:
-                tr.processo_vinculado = processo_core # Vincula ao processo
+                tr.processo_vinculado = processo_core
             tr.save()
             messages.success(request, 'Termo de Referência criado com sucesso!')
-            if processo_core:
-                return redirect('detalhes_processo', processo_id=processo_core.id)
-            elif etp_origem:
-                return redirect('contratacoes:detalhar_etp', pk=etp_origem.pk)
-            else:
-                return redirect('contratacoes:detalhar_tr', pk=tr.pk)
+            return redirect('contratacoes:detalhar_tr', pk=tr.pk)
         else:
             messages.error(request, 'Erro ao criar Termo de Referência. Verifique os campos.')
-    else: # GET request
-        initial_data = {}
+            
+    # LÓGICA DE GET ATUALIZADA PARA INCLUIR A IA
+    else: 
+        # 1. Primeiro, tentamos pegar os dados pré-preenchidos pela IA da sessão.
+        dados_iniciais = request.session.pop('dados_tr_ia', {})
+
+        # 2. Em seguida, usamos a sua lógica para completar com os outros dados.
         if etp_origem:
-            initial_data['titulo'] = f"TR do ETP: {etp_origem.titulo}"
-            initial_data['numero_processo'] = etp_origem.numero_processo # Preenche com o número do processo do ETP
-            initial_data['justificativa'] = etp_origem.descricao_necessidade # Sugestão de cópia
-            initial_data['objeto'] = etp_origem.objetivo_contratacao # Sugestão de cópia
-            initial_data['estimativa_preco_tr'] = etp_origem.estimativa_valor # Sugestão de cópia
+            # Atualiza o dicionário, adicionando ou substituindo chaves
+            dados_iniciais.update({
+                'titulo': f"TR do ETP: {etp_origem.titulo}",
+                'numero_processo': etp_origem.numero_processo,
+                'estimativa_preco_tr': etp_origem.estimativa_valor
+            })
+            # Se a IA não preencheu, usamos os dados do ETP como fallback
+            dados_iniciais.setdefault('justificativa', etp_origem.descricao_necessidade)
+            dados_iniciais.setdefault('objeto', etp_origem.objetivo_contratacao)
+        
         elif processo_core:
-             initial_data['numero_processo'] = processo_core.numero_protocolo
-             initial_data['titulo'] = f"TR para processo: {processo_core.titulo}"
+            dados_iniciais.update({
+                'numero_processo': processo_core.numero_protocolo,
+                'titulo': f"TR para processo: {processo_core.titulo}"
+            })
 
-
-        form = TRForm(initial=initial_data)
+        form = TRForm(initial=dados_iniciais)
 
     context = {
         'form': form,
@@ -382,6 +388,7 @@ def criar_tr(request, etp_id=None, processo_id=None):
         'titulo_pagina': 'Criar Termo de Referência',
     }
     return render(request, 'contratacoes/criar_tr.html', context)
+
 
 
 @login_required
@@ -1014,3 +1021,38 @@ def editar_contrato(request, pk):
         'titulo_pagina': f'Editar Contrato {contrato.numero_contrato}/{contrato.ano_contrato}'
     }
     return render(request, 'contratacoes/editar_contrato.html', context)
+
+
+
+@login_required
+def assistente_tr_ia_view(request, etp_pk):
+    """
+    Pega um ETP aprovado, envia para a IA e mostra o rascunho do TR.
+    """
+    etp = get_object_or_404(ETP, pk=etp_pk, status='APROVADO')
+    
+    # Montamos um texto único com todas as informações do ETP para dar contexto à IA
+    texto_etp_completo = f"""
+    Título do ETP: {etp.titulo}
+    Número do Processo: {etp.numero_processo}
+    Setor Demandante: {etp.setor_demandante}
+    Descrição da Necessidade: {etp.descricao_necessidade}
+    Objetivo da Contratação: {etp.objetivo_contratacao}
+    Requisitos da Contratação: {etp.requisitos_contratacao}
+    Estimativa de Quantidades: {etp.estimativa_quantidades}
+    Estimativa de Valor: R$ {etp.estimativa_valor}
+    Resultados Esperados: {etp.resultados_esperados}
+    Justificativa da Solução: {etp.viabilidade_justificativa_solucao}
+    Alinhamento Estratégico: {etp.alinhamento_planejamento}
+    """
+    
+    rascunho_tr_gerado = ai_services.gerar_rascunho_tr_com_ia(texto_etp_completo)
+
+    context = {
+        'etp': etp,
+        'rascunho_gerado': rascunho_tr_gerado,
+        'titulo_pagina': 'Assistente de IA para Termo de Referência'
+    }
+    
+    return render(request, 'contratacoes/gerar_tr_ia.html', context)
+

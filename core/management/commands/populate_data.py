@@ -150,4 +150,4 @@ class Command(BaseCommand):
             contrato=contrato, fornecedor=fornecedor_vencedor, numero_empenho=f"NE-{random.randint(1000, 9999)}",
             ano_empenho=timezone.now().year, data_emissao=timezone.now().date(),
             valor=contrato.valor_total, descricao=f"Empenho referente ao contrato {contrato.numero_contrato}"
-        )
+        )   

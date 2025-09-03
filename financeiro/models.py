@@ -1,66 +1,70 @@
-# financeiro/models.py
-from django.db import models
-from core.models import Processo
-from contratacoes.models import Contrato
-from core.models import Fornecedor
+# SysGov_Project/financeiro/models.py
 
+from django.db import models
+from core.models import Processo, Fornecedor
+from contratacoes.models import Contrato
+
+# --- MODELO DOCUMENTO FISCAL (ATUALIZADO) ---
 class DocumentoFiscal(models.Model):
     processo_vinculado = models.ForeignKey(
         Processo,
         on_delete=models.CASCADE,
-        null=True, blank=True,
-        related_name='documentos_fiscais',
-        verbose_name="Processo Principal (ProGestor Público)"
+        related_name='documentos_fiscais'
     )
-    # Campos conforme o XSD original de Documento Fiscal
-    codigo_ajuste = models.CharField(max_length=20, verbose_name="Código do Ajuste/Empenho")
-    medicao_numero = models.IntegerField(verbose_name="Número da Medição")
-    nota_empenho_numero = models.CharField(max_length=35, verbose_name="Número da Nota de Empenho")
-    nota_empenho_data_emissao = models.DateField(verbose_name="Data de Emissão da Nota de Empenho")
+    # Adicionamos a ligação ao Contrato e Fornecedor para facilitar
+    contrato_vinculado = models.ForeignKey(
+        Contrato,
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='documentos_fiscais'
+    )
+    fornecedor = models.ForeignKey(
+        Fornecedor,
+        on_delete=models.PROTECT, null=True, blank=True,
+        related_name='documentos_fiscais'
+    )
+    # Campos essenciais do documento
     documento_fiscal_numero = models.CharField(max_length=15, verbose_name="Número do Documento Fiscal (NF)")
-    documento_fiscal_uf = models.CharField(max_length=4, verbose_name="UF do Documento Fiscal (Ex: SP)")
     documento_fiscal_valor = models.DecimalField(max_digits=17, decimal_places=2, verbose_name="Valor do Documento Fiscal")
     documento_fiscal_data_emissao = models.DateField(verbose_name="Data de Emissão do Documento Fiscal")
-
-    def __str__(self):
-        return f"NF {self.documento_fiscal_numero} - Ajuste {self.codigo_ajuste}"
-
-class Pagamento(models.Model): # <<< Apenas UMA definição para a classe Pagamento
-    # <<< ADICIONADO: O campo 'processo_vinculado'
-    processo_vinculado = models.ForeignKey(
-        Processo, # Aponta para o modelo Processo do app 'core'
-        on_delete=models.CASCADE,
-        null=True, blank=True,
-        related_name='pagamentos_processo', # Escolha um related_name único
-        verbose_name="Processo Principal (ProGestor Público)"
-    )
-    # Campos conforme o XSD original de Pagamento
-    codigo_ajuste = models.CharField(max_length=20, verbose_name="Código do Ajuste/Empenho")
-    medicao_numero = models.IntegerField(verbose_name="Número da Medição")
-    nota_empenho_numero = models.CharField(max_length=35, verbose_name="Número da Nota de Empenho")
-    nota_empenho_data_emissao = models.DateField(verbose_name="Data de Emissão da Nota de Empenho")
-    documento_fiscal_numero = models.CharField(max_length=15, verbose_name="Número do Documento Fiscal (NF)")
-    documento_fiscal_data_emissao = models.DateField(verbose_name="Data de Emissão do Documento Fiscal")
-    documento_fiscal_uf = models.CharField(max_length=4, verbose_name="UF do Documento Fiscal (Ex: SP)")
-    nota_fiscal_valor_pago = models.DecimalField(max_digits=17, decimal_places=2, verbose_name="Valor Pago da Nota Fiscal")
-    nota_fiscal_pagto_dt = models.DateField(verbose_name="Data Efetiva do Pagamento")
-    recolhido_encargos_previdenciario = models.CharField(
-        max_length=1,
-        blank=True,
-        null=True,
-        choices=[('S', 'Sim'), ('N', 'Não')],
-        verbose_name="Recolhido Encargos Previdenciários?"
-    )
-
-    def __str__(self):
-        return f"Pagamento NF {self.documento_fiscal_numero} - Ajuste {self.codigo_ajuste}"
     
-# Em SysGov_Project/financeiro/models.py
+    # Manteremos os campos do AUDESP se eles forem preenchidos aqui
+    codigo_ajuste = models.CharField(max_length=20, verbose_name="Código do Ajuste/Empenho", blank=True)
+    nota_empenho_numero = models.CharField(max_length=35, verbose_name="Número da Nota de Empenho", blank=True)
 
-# ... (seus modelos DocumentoFiscal e Pagamento continuam aqui em cima) ...
+    class Meta:
+        verbose_name = "Documento Fiscal"
+        verbose_name_plural = "Documentos Fiscais"
+        ordering = ['-documento_fiscal_data_emissao']
 
-# vvv ADICIONE O CÓDIGO ABAIXO vvv
+    def __str__(self):
+        return f"NF {self.documento_fiscal_numero}"
 
+# --- MODELO PAGAMENTO (REESTRUTURADO) ---
+class Pagamento(models.Model):
+    # <<< MUDANÇA PRINCIPAL: LIGAÇÃO DIRETA AO DOCUMENTO FISCAL >>>
+    documento_fiscal = models.ForeignKey(
+        DocumentoFiscal,
+        on_delete=models.CASCADE,
+        related_name='pagamentos',
+        verbose_name="Documento Fiscal Vinculado"
+    )
+    # Campos específicos do pagamento
+    nota_fiscal_valor_pago = models.DecimalField(max_digits=17, decimal_places=2, verbose_name="Valor Pago")
+    nota_fiscal_pagto_dt = models.DateField(verbose_name="Data Efetiva do Pagamento")
+    forma_pagamento = models.CharField(max_length=100, default="Transferência Bancária", verbose_name="Forma de Pagamento")
+    
+    # Os outros campos (nº da nota, etc.) agora são acedidos através de 'documento_fiscal'
+    # Ex: pagamento.documento_fiscal.documento_fiscal_numero
+
+    class Meta:
+        verbose_name = "Pagamento"
+        verbose_name_plural = "Pagamentos"
+        ordering = ['-nota_fiscal_pagto_dt']
+
+    def __str__(self):
+        return f"Pagamento de R$ {self.nota_fiscal_valor_pago} para a NF {self.documento_fiscal.documento_fiscal_numero}"
+
+# --- MODELO NOTA DE EMPENHO (SEM ALTERAÇÕES) ---
 STATUS_EMPENHO_CHOICES = [
     ('VALIDO', 'Válido'),
     ('CANCELADO', 'Cancelado'),

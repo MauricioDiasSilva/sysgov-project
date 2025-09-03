@@ -1,73 +1,66 @@
-{# SysGov_Project/financeiro/templates/financeiro/listar_pagamentos.html #}
+{% extends 'base.html' %}
+{% load widget_tweaks %}
 
-{% extends 'base.html' %} {# Estende o template base principal do projeto #}
-{% load widget_tweaks %} {# Para o add_class, se for usar em formulários aqui #}
-
-{% block title_suffix %}{{ titulo_pagina }}{% endblock title_suffix %}
+{% block title %}{{ titulo_pagina }}{% endblock %}
 
 {% block content %}
-<section class="header-section mb-4">
-    <div class="container">
-        <h1 class="display-5 fw-bold">{% block page_title %}{{ titulo_pagina }}{% endblock page_title %}</h1>
-        <p class="lead">Lista de todos os pagamentos registrados no sistema.</p>
-    </div>
-</section>
-
-<div class="container">
+<div class="container mt-4 mb-5">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="text-primary fw-bold mb-0">Pagamentos Registrados</h2>
-        <a href="{% url 'financeiro:registrar_pagamento' %}" class="btn btn-success btn-lg">
-            <i class="bi bi-plus-circle"></i> Registrar Novo Pagamento
+        <div>
+            <h1 class="display-5 fw-bold text-primary mb-0">{{ titulo_pagina }}</h1>
+            <p class="lead">Lista de todos os pagamentos registrados no sistema.</p>
+        </div>
+        <!-- CORRIGIDO: O botão agora guia o usuário para o fluxo correto -->
+        <a href="{% url 'financeiro:listar_documentos_fiscais' %}" class="btn btn-primary" title="Um Pagamento deve ser criado a partir de um Documento Fiscal existente.">
+            <i class="fas fa-plus me-2"></i>Novo Pagamento (a partir de NF)
         </a>
     </div>
 
-    {% if pagamentos %} {# Sua view passa uma lista 'pagamentos' #}
-        <div class="table-responsive-lg">
-            <table class="table table-striped table-hover align-middle">
-                <thead class="table-dark">
-                    <tr>
-                        <th scope="col">Número NF</th>
-                        <th scope="col">Valor Pago</th>
-                        <th scope="col">Data Pagamento</th>
-                        <th scope="col">Processo</th>
-                        <th scope="col">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for pagamento in pagamentos %}
-                    <tr>
-                        <td>{{ pagamento.documento_fiscal_numero|default:"N/A" }}</td>
-                        <td>R$ {{ pagamento.nota_fiscal_valor_pago|floatformat:2 }}</td>
-                        <td>{{ pagamento.nota_fiscal_pagto_dt|date:"d/m/Y" }}</td>
-                        <td>
-                            {% if pagamento.processo_vinculado %}
-                                <a href="{% url 'detalhes_processo' processo_id=pagamento.processo_vinculado.id %}">
-                                    {{ pagamento.processo_vinculado.numero_protocolo|default:"Ver Processo" }}
-                                </a>
-                            {% else %}
-                                N/A
-                            {% endif %}
-                        </td>
-                        <td>
-                            <a href="{% url 'financeiro:detalhar_pagamento' pk=pagamento.pk %}" class="btn btn-sm btn-primary">
-                                <i class="bi bi-eye-fill"></i> Detalhes
-                            </a>
-                            {# Botões de edição/download XML - a serem implementados futuramente #}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    <div class="card shadow-sm">
+        <div class="card-body">
+            {% if pagamentos %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Nº Documento Fiscal</th>
+                                <th scope="col">Fornecedor</th>
+                                <th scope="col">Valor Pago (R$)</th>
+                                <th scope="col">Data do Pagamento</th>
+                                <th scope="col">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pagamento in pagamentos %}
+                            <tr>
+                                <!-- CORRIGIDO: Acessando os dados através do documento fiscal vinculado -->
+                                <td>{{ pagamento.documento_fiscal.documento_fiscal_numero|default:"N/A" }}</td>
+                                <td>{{ pagamento.documento_fiscal.fornecedor.razao_social|default:"N/A" }}</td>
+                                <td>{{ pagamento.nota_fiscal_valor_pago|floatformat:2 }}</td>
+                                <td>{{ pagamento.nota_fiscal_pagto_dt|date:"d/m/Y" }}</td>
+                                <td>
+                                    <!-- Os botões de detalhe/edição irão aqui -->
+                                    <a href="#" class="btn btn-sm btn-outline-primary disabled">Detalhes</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info text-center mt-3 p-4 rounded-3" role="alert">
+                    <h4 class="alert-heading">Nenhum Pagamento Registrado!</h4>
+                    <p>Para registrar um pagamento, primeiro selecione um Documento Fiscal a partir da lista.</p>
+                    <hr>
+                    <p class="mb-0">
+                        <!-- CORRIGIDO: Adicionado texto ao link -->
+                        <a href="{% url 'financeiro:listar_documentos_fiscais' %}" class="btn btn-primary">
+                            Ir para Documentos Fiscais
+                        </a>
+                    </p>
+                </div>
+            {% endif %}
         </div>
-    {% else %}
-        <div class="alert alert-info text-center mt-5 p-4 rounded-3" role="alert">
-            <h4 class="alert-heading">Nenhum Pagamento Registrado!</h4>
-            <p>Não há pagamentos registrados no sistema. Comece a registrar novos pagamentos.</p>
-            <hr>
-            <p class="mb-0">
-                <a href="{% url 'financeiro:registrar_pagamento' %}" class="btn btn-info text-white fw-bold">Registrar Primeiro Pagamento</a>
-            </p>
-        </div>
-    {% endif %}
+    </div>
 </div>
 {% endblock content %}

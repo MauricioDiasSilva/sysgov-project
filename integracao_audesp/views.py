@@ -26,7 +26,61 @@ from .models import (
 )
 from django.contrib.contenttypes.models import ContentType
 
+# SysGov_Project/integracao_audesp/views.py
 
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.models import ContentType
+
+# Importe os modelos que precisam ser enviados e o modelo de log
+from .models import SubmissaoAudesp
+from contratacoes.models import ETP, Contrato
+from licitacoes.models import Edital
+from financeiro.models import DocumentoFiscal, Pagamento
+from contratacoes.models import Contrato 
+@login_required
+def painel_audesp_view(request):
+    """
+    Esta view encontra todos os documentos que estão prontos para serem
+    enviados ao AUDESP mas que ainda não foram.
+    """
+    
+    # --- Lógica para encontrar ETPs pendentes ---
+    etp_content_type = ContentType.objects.get_for_model(ETP)
+    etps_submetidos_ids = SubmissaoAudesp.objects.filter(content_type=etp_content_type).values_list('object_id', flat=True)
+    etps_pendentes = ETP.objects.filter(status='APROVADO').exclude(pk__in=etps_submetidos_ids)
+
+    # --- Lógica para encontrar Editais pendentes ---
+    edital_content_type = ContentType.objects.get_for_model(Edital)
+    editais_submetidos_ids = SubmissaoAudesp.objects.filter(content_type=edital_content_type).values_list('object_id', flat=True)
+    editais_pendentes = Edital.objects.filter(status__in=['PUBLICADO', 'HOMOLOGADO']).exclude(pk__in=editais_submetidos_ids)
+
+    # --- Lógica para encontrar Contratos pendentes ---
+    contrato_content_type = ContentType.objects.get_for_model(Contrato)
+    contratos_submetidos_ids = SubmissaoAudesp.objects.filter(content_type=contrato_content_type).values_list('object_id', flat=True)
+    contratos_pendentes = Contrato.objects.filter(status='VIGENTE').exclude(pk__in=contratos_submetidos_ids)
+    
+    # --- NOVA LÓGICA PARA DOCUMENTOS FISCAIS PENDENTES ---
+    df_content_type = ContentType.objects.get_for_model(DocumentoFiscal)
+    df_submetidos_ids = SubmissaoAudesp.objects.filter(content_type=df_content_type).values_list('object_id', flat=True)
+    documentos_fiscais_pendentes = DocumentoFiscal.objects.all().exclude(pk__in=df_submetidos_ids)
+
+    # --- NOVA LÓGICA PARA PAGAMENTOS PENDENTES ---
+    pg_content_type = ContentType.objects.get_for_model(Pagamento)
+    pg_submetidos_ids = SubmissaoAudesp.objects.filter(content_type=pg_content_type).values_list('object_id', flat=True)
+    pagamentos_pendentes = Pagamento.objects.all().exclude(pk__in=pg_submetidos_ids)
+
+
+    context = {
+        'etps_pendentes': etps_pendentes,
+        'editais_pendentes': editais_pendentes,
+        'contratos_pendentes': contratos_pendentes,
+        'documentos_fiscais_pendentes': documentos_fiscais_pendentes, # <<< NOVO
+        'pagamentos_pendentes': pagamentos_pendentes, # <<< NOVO
+        'titulo_pagina': 'Painel de Submissão AUDESP'
+    }
+    
+    return render(request, 'integracao_audesp/painel_audesp.html', context)
 
 @login_required
 def criar_ajuste_contratual_audesp(request, processo_id=None, resultado_id=None):
@@ -58,8 +112,7 @@ def criar_ajuste_contratual_audesp(request, processo_id=None, resultado_id=None)
         initial_data = {}
         if processo_ref:
             initial_data['processo_sistema_origem'] = processo_ref.numero_protocolo
-            # Tente preencher outros campos com base no processo/resultado/edital
-            # Ex: initial_data['ano_contrato'] = processo_ref.data_criacao.year
+    
         if resultado_ref:
             initial_data['ni_fornecedor'] = resultado_ref.cnpj_vencedor
             initial_data['nome_razao_social_fornecedor'] = resultado_ref.fornecedor_vencedor
@@ -192,14 +245,7 @@ def gerar_edital_audesp_json(request, edital_id):
 
 
     publicacoes_audesp_json = []
-    # A EditalPublicacao foi removida de licitacoes.models.
-    # Publicações detalhadas serão tratadas via AudespEditalDetalhado no futuro, se necessário.
-    # Por ora, garantimos que o JSON não tente acessar uma relação inexistente.
-    # Se edital.publicacoes_audesp existia e era uma relação, pode ter sido removida.
-    # Se for um JSONField no Edital, ele seria acessado diretamente.
-    # Por simplicidade, vamos assumir que não há publicações complexas aqui por enquanto.
-    # Se você tiver um campo JSONField em Edital para publicações, use-o aqui.
-    # Ex: if edital.publicacoes_json_field: publicacoes_audesp_json = edital.publicacoes_json_field
+  
 
     itens_licitacao_audesp_json = []
     if hasattr(edital, 'itens_diretos') and edital.itens_diretos.exists():
@@ -313,61 +359,60 @@ def detalhar_empenho_audesp(request, pk):
     return render(request, 'integracao_audesp/detalhar_empenho_audesp.html', context)
 
 
-# --- VIEWS DE GERAÇÃO DE JSON (API) ---
-
 @login_required
 def gerar_ajuste_contratual_audesp_json(request, ajuste_id):
-    ajuste = get_object_or_404(AudespAjusteContratual, pk=ajuste_id)
+    # 1. A fonte dos dados agora é o nosso modelo Contrato principal.
+    # A variável agora chama-se 'contrato' para ser claro.
+    contrato = get_object_or_404(Contrato, pk=ajuste_id)
     config_data = get_audesp_config_data()
 
+    # 2. Mantemos a sua estrutura de JSON completa, mas "traduzimos" os campos.
     descritor_json = {
-        "municipio": config_data["municipio_codigo"],
-        "entidade": config_data["entidade_codigo"],
-        "adesaoParticipacao": ajuste.adesao_participacao,
-        "gerenciadoraJurisdicionada": ajuste.gerenciadora_jurisdicionada,
-        "cnpjGerenciadora": ajuste.cnpj_gerenciadora,
-        "municipioGerenciador": ajuste.municipio_gerenciador,
-        "entidadeGerenciadora": ajuste.entidade_gerenciadora,
-        "codigoEdital": ajuste.codigo_edital_audesp,
-        "codigoAta": ajuste.codigo_ata_rp_audesp,
-        "codigoContrato": ajuste.codigo_contrato_audesp,
-        "retificacao": ajuste.retificacao
+        "municipio": config_data.get("municipio_codigo"),
+        "entidade": config_data.get("entidade_codigo"),
+        "codigoEdital": contrato.licitacao_origem.numero_edital if contrato.licitacao_origem else None,
+        "codigoContrato": f"{contrato.numero_contrato}/{contrato.ano_contrato}",
+        # Campos que não temos no nosso modelo simplificado recebem um valor padrão.
+        "retificacao": False,
+        "adesaoParticipacao": False, 
+        "gerenciadoraJurisdicionada": None,
+        "cnpjGerenciadora": None,
+        "municipioGerenciador": None,
+        "entidadeGerenciadora": None,
+        "codigoAta": None,
     }
-    descritor_json_limpo = {k: v for k, v in descritor_json.items() if v is not None and v != '' and (not isinstance(v, list) or len(v) > 0)}
 
     dados_ajuste_contratual_audesp = {
-        "descritor": descritor_json_limpo,
-        "fonteRecursosContratacao": ajuste.fonte_recursos_contratacao if ajuste.fonte_recursos_contratacao else [],
-        "itens": ajuste.itens_contratados_ids if ajuste.itens_contratados_ids else [],
-        "tipoContratoId": ajuste.tipo_contrato_id,
-        "numeroContratoEmpenho": ajuste.numero_contrato_empenho,
-        "anoContrato": ajuste.ano_contrato,
-        "processo": ajuste.processo_sistema_origem,
-        "categoriaProcessoId": ajuste.categoria_processo_id,
-        "receita": ajuste.receita,
-        "despesas": ajuste.despesas_classificacao if ajuste.despesas_classificacao else [],
-        "codigoUnidade": ajuste.codigo_unidade,
-        "niFornecedor": ajuste.ni_fornecedor,
-        "tipoPessoaFornecedor": ajuste.tipo_pessoa_fornecedor,
-        "nomeRazaoSocialFornecedor": ajuste.nome_razao_social_fornecedor,
-        "niFornecedorSubContratado": ajuste.ni_fornecedor_subcontratado,
-        "tipoPessoaFornecedorSubContratado": ajuste.tipo_pessoa_fornecedor_subcontratado,
-        "nomeRazaoSocialFornecedorSubContratado": ajuste.nome_razao_social_fornecedor_subcontratado,
-        "objetoContrato": ajuste.objeto_contrato,
-        "informacaoComplementar": ajuste.informacao_complementar,
-        "valorInicial": float(ajuste.valor_inicial),
-        "numeroParcelas": ajuste.numero_parcelas,
-        "valorParcela": float(ajuste.valor_parcela) if ajuste.valor_parcela is not None else None,
-        "valorGlobal": float(ajuste.valor_global),
-        "valorAcumulado": float(ajuste.valor_acumulado),
-        "dataAssinatura": ajuste.data_assinatura.strftime("%Y-%m-%d"),
-        "dataVigenciaInicio": ajuste.data_vigencia_inicio.strftime("%Y-%m-%d"),
-        "dataVigenciaFim": ajuste.data_vigencia_fim.strftime("%Y-%m-%d"),
-        "vigenciaMeses": ajuste.vigencia_meses,
-        "tipoObjetoContrato": ajuste.tipo_objeto_contrato
+        "descritor": {k: v for k, v in descritor_json.items() if v is not None},
+        "tipoContratoId": 1, # Exemplo: 1 para Contrato normal.
+        "numeroContratoEmpenho": contrato.numero_contrato,
+        "anoContrato": contrato.ano_contrato,
+        "processo": contrato.processo_vinculado.numero_protocolo if contrato.processo_vinculado else None,
+        "niFornecedor": contrato.contratado.cnpj.replace('.', '').replace('/', '').replace('-', ''),
+        "tipoPessoaFornecedor": "J", # 'J' para Jurídica
+        "nomeRazaoSocialFornecedor": contrato.contratado.razao_social,
+        "objetoContrato": contrato.objeto,
+        "valorInicial": float(contrato.valor_total),
+        "valorGlobal": float(contrato.valor_total),
+        "dataAssinatura": contrato.data_assinatura.strftime("%Y-%m-%d"),
+        "dataVigenciaInicio": contrato.data_inicio_vigencia.strftime("%Y-%m-%d"),
+        "dataVigenciaFim": contrato.data_fim_vigencia.strftime("%Y-%m-%d"),
+        # Outros campos com valores padrão para completar o JSON
+        "fonteRecursosContratacao": [],
+        "itens": [],
+        "categoriaProcessoId": None,
+        "receita": None,
+        "despesas": [],
+        "codigoUnidade": None,
+        "informacaoComplementar": "Contrato gerado pelo sistema ProGestor Público.",
+        "numeroParcelas": 1,
+        "valorParcela": float(contrato.valor_total),
+        "valorAcumulado": float(contrato.valor_total),
+        "vigenciaMeses": 12, # Exemplo, no futuro poderíamos calcular isto
+        "tipoObjetoContrato": 1 # Exemplo
     }
-    dados_ajuste_contratual_audesp_limpo = {k: v for k, v in dados_ajuste_contratual_audesp.items() if v is not None and v != '' and (not isinstance(v, list) or len(v) > 0)} # Corrigido para ser limpo
-    return JsonResponse(dados_ajuste_contratual_audesp_limpo, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 4}) # Usar a versão limpa
+    
+    return JsonResponse(dados_ajuste_contratual_audesp, safe=False, json_dumps_params={'ensure_ascii': False, 'indent': 4})
 
 
 @login_required
