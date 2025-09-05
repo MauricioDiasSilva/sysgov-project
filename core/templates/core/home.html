@@ -9,10 +9,10 @@
         <h1 class="display-4 fw-bold mb-3">Bem-vindo ao SysGov!</h1>
         <p class="lead mb-4">Sua plataforma completa para gestão de contratos e licitações. Simplifique processos, garanta transparência e esteja em conformidade.</p>
         {% if user.is_authenticated %}
-            <a href="{% url 'criar_processo' %}" class="btn btn-light btn-lg rounded-pill px-4 me-3">
+            <a href="{% url 'core:criar_processo' %}" class="btn btn-light btn-lg rounded-pill px-4 me-3">
                 <i class="fas fa-plus-circle me-2"></i> Iniciar Novo Processo
             </a>
-            <a href="{% url 'meus_processos' %}" class="btn btn-outline-light btn-lg rounded-pill px-4">
+            <a href="{% url 'core:meus_processos' %}" class="btn btn-outline-light btn-lg rounded-pill px-4">
                 <i class="fas fa-folder-open me-2"></i> Ver Meus Processos
             </a>
         {% else %}
@@ -69,7 +69,7 @@
             <div class="card-body text-center p-4">
                 <i class="fas fa-project-diagram fa-3x text-primary mb-3"></i>
                 <h5 class="card-title fw-bold">Processos Gerais</h5>
-                <a href="{% url 'meus_processos' %}" class="btn btn-outline-primary btn-sm mt-3">Ver Meus Processos</a>
+                <a href="{% url 'core:meus_processos' %}" class="btn btn-outline-primary btn-sm mt-3">Ver Meus Processos</a>
             </div>
         </div>
     </div>
@@ -106,7 +106,7 @@
             <div class="card-body text-center p-4">
                 <i class="fas fa-users fa-3x text-secondary mb-3"></i>
                 <h5 class="card-title fw-bold">Fornecedores</h5>
-                <a href="{% url 'listar_fornecedores' %}" class="btn btn-outline-secondary btn-sm mt-3">Gerir Fornecedores</a>
+                <a href="{% url 'core:listar_fornecedores' %}" class="btn btn-outline-secondary btn-sm mt-3">Gerir Fornecedores</a>
             </div>
         </div>
     </div>
@@ -130,6 +130,15 @@
                 </div>
             </div>
         </div>
+        <div class="col">
+        <div class="card h-100 shadow-sm border-0 rounded-4">
+            <div class="card-body text-center p-4">
+                <i class="fas fa-gavel fa-3x text-warning mb-3"></i>
+                <h5 class="card-title fw-bold">Dashboard Gerencial</h5>
+                 <a href="{% url 'core:dashboard_gerencial' %}" class="btn btn-outline-warning btn-sm mt-3">Dashboads Gerenciais</a>
+            </div>
+        </div>
+    </div>
     </div>
 </div>
 {% endblock content %}

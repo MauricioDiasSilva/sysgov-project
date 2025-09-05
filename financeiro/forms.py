@@ -3,6 +3,7 @@
 from django import forms
 from .models import DocumentoFiscal, Pagamento, NotaEmpenho
 
+
 class DocumentoFiscalForm(forms.ModelForm):
     class Meta:
         model = DocumentoFiscal
@@ -35,6 +36,8 @@ class PagamentoForm(forms.ModelForm):
             'nota_fiscal_pagto_dt': "Data Efetiva do Pagamento",
             'forma_pagamento': "Forma de Pagamento",
         }
+        
+
 
 class NotaEmpenhoForm(forms.ModelForm):
     class Meta:

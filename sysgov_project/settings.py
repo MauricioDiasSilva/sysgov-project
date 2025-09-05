@@ -126,8 +126,8 @@ SITE_ID = 1
 # ACCOUNT_SIGNUP_FIELDS = ['username', 'email']
 
 # Redireciona para a página inicial ('home') após o login e logout.
-LOGIN_REDIRECT_URL = 'home'
-ACCOUNT_LOGOUT_REDIRECT_URL = 'home'
+LOGIN_REDIRECT_URL = 'core:home'
+LOGIN_REDIRECT_URL = 'core:home'
 
 # ----------------------------------------------------
 # Fim das Configurações do Django Allauth

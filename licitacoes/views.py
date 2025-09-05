@@ -4,20 +4,16 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, permission_required
 from django.contrib import messages
 from django.forms import inlineformset_factory # Para formsets
-from django.db import transaction # Para transações atômicas
+from django.db import transaction, IntegrityError # Para transações atômicas
 from django.db.models import Q # Para queries complexas (se for usar)
 from django.utils import timezone # Para campos de data/hora
-
-# Importar os modelos da sua própria app 'licitacoes'
 from .models import (
-    Edital, Lance, Lote, ItemLicitado, ResultadoLicitacao, # EditalPublicacao e EditalItem REMOVIDOS
-    # Importar os CHOICES definidos nos modelos para usar nas views
+    Edital, Lance, Lote, ItemLicitado, ResultadoLicitacao,Pregao, ParticipanteLicitacao,
     STATUS_EDITAL_CHOICES,
     TIPO_INSTRUMENTO_CONVOCATORIO_CHOICES, MODALIDADE_LICITACAO_CHOICES, MODO_DISPUTA_CHOICES,
     VEICULO_PUBLICACAO_CHOICES, TIPO_BENEFICIO_CHOICES, CRITERIO_JULGAMENTO_CHOICES, ITEM_CATEGORIA_CHOICES, Pregao
 )
-from django.db import IntegrityError
-# Importar os formulários da sua própria app 'licitacoes'
+
 from .forms import (
     EditalForm, LoteForm, ItemLicitadoForm, ResultadoLicitacaoForm,ParticipanteForm, LanceForm
     )
@@ -279,12 +275,7 @@ def editar_resultado_licitacao(request, pk):
     return render(request, 'licitacoes/editar_resultado_licitacao.html', context)
 
 
-# Em licitacoes/views.py
 
-from django.db import transaction, IntegrityError
-from django.utils import timezone
-from .models import Pregao, ParticipanteLicitacao, Lance, ResultadoLicitacao # Adicionado ResultadoLicitacao
-from .forms import ParticipanteForm, LanceForm
 
 @login_required
 def painel_pregao(request, pregao_id):
@@ -383,3 +374,35 @@ def painel_pregao(request, pregao_id):
         'titulo_pagina': f"Painel do Pregão - Edital {pregao.edital.numero_edital}"
     }
     return render(request, 'licitacoes/painel_pregao.html', context)
+
+
+
+@login_required
+def gerar_ata_pregao_pdf(request, pregao_id):
+    """
+    Gera o documento oficial da Ata da Sessão do Pregão em formato PDF.
+    """
+    try:
+        pregao = get_object_or_404(Pregao, pk=pregao_id)
+        
+        context = {
+            'pregao': pregao
+            # Todos os dados necessários (participantes, itens, lances)
+            # já são acessíveis no template através do objeto 'pregao'.
+        }
+
+        # 1. Renderiza o nosso template HTML para uma string
+        html_string = render_to_string('licitacoes/ata_pregao_pdf.html', context)
+        
+        # 2. Converte a string HTML para PDF
+        pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri('/')).write_pdf()
+        
+        # 3. Cria a resposta HTTP para o navegador
+        response = HttpResponse(pdf_file, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Ata_Pregao_{pregao.edital.numero_edital}.pdf"'
+        
+        return response
+
+    except Exception as e:
+        messages.error(request, f"Ocorreu um erro ao gerar o PDF da Ata: {e}")
+        return redirect('licitacoes:painel_pregao', pregao_id=pregao_id)

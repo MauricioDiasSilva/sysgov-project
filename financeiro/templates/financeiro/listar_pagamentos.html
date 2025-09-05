@@ -10,7 +10,6 @@
             <h1 class="display-5 fw-bold text-primary mb-0">{{ titulo_pagina }}</h1>
             <p class="lead">Lista de todos os pagamentos registrados no sistema.</p>
         </div>
-        <!-- CORRIGIDO: O botão agora guia o usuário para o fluxo correto -->
         <a href="{% url 'financeiro:listar_documentos_fiscais' %}" class="btn btn-primary" title="Um Pagamento deve ser criado a partir de um Documento Fiscal existente.">
             <i class="fas fa-plus me-2"></i>Novo Pagamento (a partir de NF)
         </a>
@@ -33,14 +32,15 @@
                         <tbody>
                             {% for pagamento in pagamentos %}
                             <tr>
-                                <!-- CORRIGIDO: Acessando os dados através do documento fiscal vinculado -->
                                 <td>{{ pagamento.documento_fiscal.documento_fiscal_numero|default:"N/A" }}</td>
                                 <td>{{ pagamento.documento_fiscal.fornecedor.razao_social|default:"N/A" }}</td>
                                 <td>{{ pagamento.nota_fiscal_valor_pago|floatformat:2 }}</td>
                                 <td>{{ pagamento.nota_fiscal_pagto_dt|date:"d/m/Y" }}</td>
                                 <td>
-                                    <!-- Os botões de detalhe/edição irão aqui -->
-                                    <a href="#" class="btn btn-sm btn-outline-primary disabled">Detalhes</a>
+                                    <!-- BOTÃO ATIVADO -->
+                                    <a href="{% url 'financeiro:detalhar_pagamento' pk=pagamento.pk %}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye me-1"></i>Detalhes
+                                    </a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -53,7 +53,6 @@
                     <p>Para registrar um pagamento, primeiro selecione um Documento Fiscal a partir da lista.</p>
                     <hr>
                     <p class="mb-0">
-                        <!-- CORRIGIDO: Adicionado texto ao link -->
                         <a href="{% url 'financeiro:listar_documentos_fiscais' %}" class="btn btn-primary">
                             Ir para Documentos Fiscais
                         </a>

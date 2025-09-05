@@ -60,4 +60,8 @@ urlpatterns = [
     path('contratos/', views.listar_contratos, name='listar_contratos'),
     path('contrato/<int:pk>/', views.detalhar_contrato, name='detalhar_contrato'),
     path('contrato/<int:pk>/editar/', views.editar_contrato, name='editar_contrato'),
+    path('contrato/<int:pk>/pdf/', views.gerar_contrato_pdf, name='gerar_contrato_pdf'),
+    
+    path('atas-rp/', views.listar_atas_rp, name='listar_atas_rp'),
+    path('atas-rp/<int:pk>/', views.detalhar_ata_rp, name='detalhar_ata_rp'),
 ]

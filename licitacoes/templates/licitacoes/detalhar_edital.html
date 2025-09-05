@@ -36,7 +36,7 @@
                         <dt class="col-sm-3">Processo Vinculado</dt>
                         <dd class="col-sm-9">
                             {% if edital.processo_vinculado %}
-                                <a href="{% url 'detalhes_processo' processo_id=edital.processo_vinculado.id %}">
+                                <a href="{% url 'core:detalhes_processo' processo_id=edital.processo_vinculado.id %}">
                                     {{ edital.processo_vinculado.numero_protocolo|default:"Ver Processo" }} - {{ edital.processo_vinculado.titulo }}
                                 </a>
                             {% else %}

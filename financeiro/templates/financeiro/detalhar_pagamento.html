@@ -1,67 +1,50 @@
-{# SysGov_Project/financeiro/templates/financeiro/detalhar_pagamento.html #}
 {% extends 'base.html' %}
 {% load widget_tweaks %}
 
-{% block title_suffix %}{{ titulo_pagina }}{% endblock title_suffix %}
+{% block title %}{{ titulo_pagina }}{% endblock %}
 
 {% block content %}
-<section class="header-section mb-4">
-    <div class="container">
-        <h1 class="display-5 fw-bold">{{ titulo_pagina }}</h1>
-        <p class="lead">Detalhes completos do Pagamento.</p>
-    </div>
-</section>
+<div class="container mt-4 mb-5">
+    <!-- CABEÇALHO -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h1 class="display-5 fw-bold text-primary mb-0">{{ titulo_pagina }}</h1>
+            <p class="lead">Documento Fiscal: <a href="{% url 'financeiro:detalhar_documento_fiscal' pk=pagamento.documento_fiscal.pk %}">{{ pagamento.documento_fiscal.documento_fiscal_numero }}</a></p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{% url 'financeiro:listar_pagamentos' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-list me-2"></i>Voltar para a Lista
+            </a>
+            <a href="{% url 'financeiro:editar_pagamento' pk=pagamento.pk %}" class="btn btn-warning">
+                <i class="fas fa-edit me-2"></i>Editar Pagamento
+            </a>
+        </div>
 
-<div class="row justify-content-center">
-    <div class="col-lg-10">
-        <div class="card shadow-sm border-0 rounded-4">
-            <div class="card-header card-header-custom p-3">
-                <h5 class="mb-0">Informações do Pagamento</h5>
-            </div>
-            <div class="card-body p-4">
-                {% if pagamento %}
-                    <div class="row mb-3">
-                        <div class="col-md-6"><strong>Número NF:</strong> <span class="text-muted">{{ pagamento.documento_fiscal_numero }}</span></div>
-                        <div class="col-md-6"><strong>Valor Pago:</strong> <span class="text-muted">R$ {{ pagamento.nota_fiscal_valor_pago|floatformat:2 }}</span></div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6"><strong>Data Pagamento:</strong> <span class="text-muted">{{ pagamento.nota_fiscal_pagto_dt|date:"d/m/Y" }}</span></div>
-                        <div class="col-md-6"><strong>UF Doc. Fiscal:</strong> <span class="text-muted">{{ pagamento.documento_fiscal_uf }}</span></div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6"><strong>Número Empenho:</strong> <span class="text-muted">{{ pagamento.nota_empenho_numero }}</span></div>
-                        <div class="col-md-6"><strong>Data Empenho:</strong> <span class="text-muted">{{ pagamento.nota_empenho_data_emissao|date:"d/m/Y" }}</span></div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-12"><strong>Recolhido Encargos Previdenciários?</strong> <span class="text-muted">{{ pagamento.get_recolhido_encargos_previdenciario_display }}</span></div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-12">
-                            <strong>Processo Vinculado:</strong> 
-                            {% if pagamento.processo_vinculado %}
-                                <a href="{% url 'detalhes_processo' processo_id=pagamento.processo_vinculado.id %}">
-                                    {{ pagamento.processo_vinculado.numero_protocolo|default:"Ver Processo" }} - {{ pagamento.processo_vinculado.titulo }}
-                                </a>
-                            {% else %}
-                                <span class="text-muted">Nenhum processo vinculado.</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <hr>
-                    <div class="text-end mt-3">
-                        <a href="{% url 'financeiro:listar_pagamentos' %}" class="btn btn-outline-secondary me-2"><i class="bi bi-arrow-left-circle"></i> Voltar para Lista</a>
-                        <a href="#" class="btn btn-primary me-2 disabled" aria-disabled="true">
-                            <i class="bi bi-pencil"></i> Editar Pagamento
-                        </a>
-                        <a href="{% url 'financeiro:download_pg_xml' pk=pagamento.pk %}" class="btn btn-info" target="_blank">
-                            <i class="bi bi-download"></i> Baixar XML
-                        </a>
-                    </div>
-                {% else %}
-                    <div class="alert alert-info text-center">Pagamento não encontrado.</div>
-                {% endif %}
-            </div>
+    </div>
+
+    <!-- CARD DE INFORMAÇÕES DO PAGAMENTO -->
+    <div class="card shadow-sm">
+        <div class="card-header"><h5 class="mb-0">Informações do Pagamento</h5></div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-3">Valor Pago</dt>
+                <dd class="col-sm-9"><strong>R$ {{ pagamento.nota_fiscal_valor_pago|floatformat:2 }}</strong></dd>
+
+                <dt class="col-sm-3">Data Efetiva do Pagamento</dt>
+                <dd class="col-sm-9">{{ pagamento.nota_fiscal_pagto_dt|date:"d/m/Y" }}</dd>
+
+                <dt class="col-sm-3">Forma de Pagamento</dt>
+                <dd class="col-sm-9">{{ pagamento.forma_pagamento }}</dd>
+                
+                <hr class="my-3">
+
+                <dt class="col-sm-3">Fornecedor</dt>
+                <dd class="col-sm-9">{{ pagamento.documento_fiscal.fornecedor.razao_social }}</dd>
+                
+                <dt class="col-sm-3">Contrato Vinculado</dt>
+                <dd class="col-sm-9"><a href="{% url 'contratacoes:detalhar_contrato' pk=pagamento.documento_fiscal.contrato_vinculado.pk %}">{{ pagamento.documento_fiscal.contrato_vinculado }}</a></dd>
+            </dl>
         </div>
     </div>
 </div>
-{% endblock content %}
+{% endblock %}

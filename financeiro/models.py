@@ -48,7 +48,7 @@ class Pagamento(models.Model):
         related_name='pagamentos',
         verbose_name="Documento Fiscal Vinculado"
     )
-    # Campos específicos do pagamento
+   
     nota_fiscal_valor_pago = models.DecimalField(max_digits=17, decimal_places=2, verbose_name="Valor Pago")
     nota_fiscal_pagto_dt = models.DateField(verbose_name="Data Efetiva do Pagamento")
     forma_pagamento = models.CharField(max_length=100, default="Transferência Bancária", verbose_name="Forma de Pagamento")

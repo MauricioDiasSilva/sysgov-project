@@ -3,7 +3,7 @@
 from django.contrib import admin
 # ADICIONADO Contrato À IMPORTAÇÃO
 from .models import (
-    ETP, TR, PCA, ItemPCA, ItemCatalogo, PesquisaPreco, 
+    ETP, TR, PCA, ItemPCA, ItemCatalogo, PesquisaPreco, AtaRegistroPrecos,
     ParecerTecnico, ModeloTexto, RequisitoPadrao, Contrato
 )
 
@@ -67,7 +67,16 @@ class ContratoAdmin(admin.ModelAdmin):
     date_hierarchy = 'data_assinatura'
 
 
-# Registra seus modelos no painel de administração
+class AtaRegistroPrecosAdmin(admin.ModelAdmin):
+    list_display = ('numero_ata', 'ano_ata', 'fornecedor_beneficiario', 'valor_total_registrado', 'status')
+    list_filter = ('status', 'ano_ata')
+    search_fields = ('numero_ata', 'objeto', 'fornecedor_beneficiario__razao_social')
+    raw_id_fields = ('processo_vinculado', 'licitacao_origem', 'fornecedor_beneficiario')
+    date_hierarchy = 'data_assinatura'
+
+
+admin.site.register(Contrato, ContratoAdmin)
+admin.site.register(AtaRegistroPrecos)
 admin.site.register(ETP, ETPAdmin)
 admin.site.register(TR, TRAdmin)
 admin.site.register(PCA, PCAAdmin)
@@ -77,5 +86,3 @@ admin.site.register(PesquisaPreco, PesquisaPrecoAdmin)
 admin.site.register(ParecerTecnico, ParecerTecnicoAdmin)
 admin.site.register(ModeloTexto, ModeloTextoAdmin)
 admin.site.register(RequisitoPadrao, RequisitoPadraoAdmin)
-# NOVO REGISTRO PARA CONTRATOS
-admin.site.register(Contrato, ContratoAdmin)

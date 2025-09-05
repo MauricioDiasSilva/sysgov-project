@@ -23,5 +23,6 @@ urlpatterns = [
     path('resultados/', views.listar_resultados_licitacao, name='listar_resultados_licitacao'),
     path('resultados/<int:pk>/editar/', views.editar_resultado_licitacao, name='editar_resultado_licitacao'),
     path('pregao/<int:pregao_id>/painel/', views.painel_pregao, name='painel_pregao'),
+    path('pregao/<int:pregao_id>/ata-pdf/', views.gerar_ata_pregao_pdf, name='gerar_ata_pregao_pdf'),
 ]
 

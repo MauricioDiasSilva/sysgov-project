@@ -17,7 +17,7 @@
                 {% endfor %}
 
                 <div class="mt-4 text-end">
-                    <a href="{% url 'detalhar_fornecedor' pk=fornecedor.pk %}" class="btn btn-secondary">Cancelar</a>
+                    <a href="{% url 'core:detalhar_fornecedor' pk=fornecedor.pk %}" class="btn btn-secondary">Cancelar</a>
                     <button type="submit" class="btn btn-primary">Salvar Alterações</button>
                 </div>
             </form>

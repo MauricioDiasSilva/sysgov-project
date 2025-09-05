@@ -587,3 +587,71 @@ class Contrato(models.Model):
 
     def __str__(self):
         return f"Contrato {self.numero_contrato}/{self.ano_contrato} - {self.contratado.razao_social}"
+    
+    
+STATUS_ATA_CHOICES = [
+    ('VIGENTE', 'Vigente'),
+    ('EXPIRADA', 'Expirada'),
+    ('CANCELADA', 'Cancelada'),
+]
+
+class AtaRegistroPrecos(models.Model):
+    processo_vinculado = models.ForeignKey(
+        Processo,
+        on_delete=models.PROTECT,
+        related_name='atas_rp',
+        verbose_name="Processo Vinculado"
+    )
+    licitacao_origem = models.ForeignKey(
+        Edital,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='atas_geradas',
+        verbose_name="Licitação de Origem"
+    )
+    fornecedor_beneficiario = models.ForeignKey(
+        Fornecedor,
+        on_delete=models.PROTECT,
+        related_name='atas_rp',
+        verbose_name="Fornecedor Beneficiário"
+    )
+    numero_ata = models.CharField(
+        max_length=50,
+        verbose_name="Número da Ata"
+    )
+    ano_ata = models.IntegerField(
+        verbose_name="Ano da Ata"
+    )
+    objeto = models.TextField(
+        verbose_name="Objeto da Ata de RP"
+    )
+    valor_total_registrado = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name="Valor Total Registrado (R$)"
+    )
+    data_assinatura = models.DateField(
+        verbose_name="Data de Assinatura"
+    )
+    data_inicio_vigencia = models.DateField(
+        verbose_name="Início da Vigência"
+    )
+    data_fim_vigencia = models.DateField(
+        verbose_name="Fim da Vigência"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_ATA_CHOICES,
+        default='VIGENTE',
+        verbose_name="Status da Ata"
+    )
+    data_criacao = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        verbose_name = "Ata de Registro de Preços"
+        verbose_name_plural = "Atas de Registro de Preços"
+        unique_together = ('numero_ata', 'ano_ata')
+        ordering = ['-ano_ata', '-numero_ata']
+
+    def __str__(self):
+        return f"Ata de RP {self.numero_ata}/{self.ano_ata} - {self.fornecedor_beneficiario.razao_social}"

@@ -18,7 +18,7 @@ from core.models import Processo, ArquivoAnexo # <<< Importação corrigida para
 from django.forms import inlineformset_factory
 # Importar os modelos da sua própria app 'contratacoes'
 from .models import (
-    ETP, TR, PCA, ItemPCA, PesquisaPreco, ParecerTecnico,
+    ETP, TR, PCA, ItemPCA, PesquisaPreco, ParecerTecnico,AtaRegistroPrecos,
     ModeloTexto, RequisitoPadrao, ItemCatalogo, STATUS_DOCUMENTO_CHOICES,Contrato 
 )
 
@@ -733,24 +733,36 @@ def gerar_etp_pdf(request, pk):
 
 
 
+# Em contratacoes/views.py
+
+@login_required
 def gerar_tr_pdf(request, pk):
-    tr = get_object_or_404(TR, pk=pk)
+    """
+    Gera o documento oficial do Termo de Referência em formato PDF.
+    """
+    try:
+        tr = get_object_or_404(TR, pk=pk)
+        
+        context = {
+            'tr': tr
+        }
 
-    context = {
-        'tr': tr,
-    }
+        # Renderiza o nosso template HTML final e completo
+        html_string = render_to_string('contratacoes/tr_pdf.html', context)
+        
+        # Converte a string HTML para PDF
+        pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri('/')).write_pdf()
+        
+        # Cria a resposta HTTP para o navegador
+        response = HttpResponse(pdf_file, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="TR_{tr.numero_processo}.pdf"'
+        
+        return response
 
-    html_string = render_to_string('contratacoes/tr_pdf_template.html', context)
-
-    # Converte o HTML para PDF usando WeasyPrint
-    html = HTML(string=html_string, base_url=request.build_absolute_uri('/'))
-    pdf = html.write_pdf()
-
-    # Cria uma resposta HTTP com o PDF para download
-    response = HttpResponse(pdf, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="TR_{tr.pk}.pdf"'
-    return response
-
+    except Exception as e:
+        # Se algo der errado, mostra uma mensagem de erro e volta para a página de detalhes
+        messages.error(request, f"Ocorreu um erro ao gerar o PDF: {e}")
+        return redirect('contratacoes:detalhar_tr', pk=pk)
 @login_required
 @permission_required('contratacoes.add_tr', raise_exception=True)
 def gerar_tr_a_partir_etp(request, pk):
@@ -1056,3 +1068,52 @@ def assistente_tr_ia_view(request, etp_pk):
     
     return render(request, 'contratacoes/gerar_tr_ia.html', context)
 
+# Adicione esta view ao seu contratacoes/views.py
+
+@login_required
+def gerar_contrato_pdf(request, pk):
+    """
+    Gera o documento oficial do Contrato em formato PDF.
+    """
+    try:
+        contrato = get_object_or_404(Contrato, pk=pk)
+        
+        context = {
+            'contrato': contrato
+        }
+
+        # 1. Renderiza o nosso template HTML para uma string
+        html_string = render_to_string('contratacoes/contrato_pdf.html', context)
+        
+        # 2. Converte a string HTML para PDF
+        pdf_file = HTML(string=html_string).write_pdf()
+        
+        # 3. Cria a resposta HTTP para o navegador
+        response = HttpResponse(pdf_file, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="contrato_{contrato.numero_contrato}_{contrato.ano_contrato}.pdf"'
+        
+        return response
+
+    except Exception as e:
+        messages.error(request, f"Ocorreu um erro ao gerar o PDF: {e}")
+        return redirect('contratacoes:detalhar_contrato', pk=pk)
+
+
+@login_required
+def listar_atas_rp(request):
+    atas = AtaRegistroPrecos.objects.all().order_by('-data_assinatura')
+    context = {
+        'atas': atas,
+        'titulo_pagina': 'Atas de Registro de Preços'
+    }
+    return render(request, 'contratacoes/listar_atas_rp.html', context)
+
+
+@login_required
+def detalhar_ata_rp(request, pk):
+    ata = get_object_or_404(AtaRegistroPrecos, pk=pk)
+    context = {
+        'ata': ata,
+        'titulo_pagina': f'Detalhes da Ata de RP {ata.numero_ata}/{ata.ano_ata}'
+    }
+    return render(request, 'contratacoes/detalhar_ata_rp.html', context)

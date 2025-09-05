@@ -5,16 +5,20 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse # Para retornar o HTML para AJAX
 from django.template.loader import render_to_string # Para renderizar templates como string
 from django.contrib import messages
-
+from django.db.models.functions import TruncMonth
 # Importações dos modelos e formulários do próprio app 'core'
 from .models import Processo, ArquivoAnexo
 from .forms import ProcessoForm, ArquivoAnexoForm
-
+from django.db.models import Sum, Count, F, Func
 # Importe os modelos necessários dos outros apps (agora que estão no mesmo projeto)
 from contratacoes.models import ETP, TR
 from licitacoes.models import Edital
 from financeiro.models import DocumentoFiscal, Pagamento
 from django.contrib.contenttypes.models import ContentType
+
+from contratacoes.models import Contrato, ETP
+from licitacoes.models import Edital, ResultadoLicitacao
+from financeiro.models import Pagamento
 
 # views.py (apenas para teste temporário)
 import os
@@ -24,6 +28,7 @@ from django.conf import settings # Importar settings para acessar STATIC_ROOT ou
 import os
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, Http404
+
 
 def visualizar_anexo_pdf(request, anexo_id):
     anexo = get_object_or_404(ArquivoAnexo, pk=anexo_id)
@@ -54,22 +59,36 @@ def visualizar_anexo_pdf(request, anexo_id):
         return response
     
 
+def home(request):
+    dashboard_stats = {}
+    # Nomes para o novo gráfico de status
+    labels_status = []
+    data_status = []
 
-
-def home_view(request): # O nome da sua view pode ser 'home_view', ajuste se necessário
-    dashboard_stats = None
     if request.user.is_authenticated:
-        # Calcule as estatísticas
+        # Estatísticas gerais (já existentes)
         dashboard_stats = {
             'processos_em_analise': Processo.objects.filter(status='EM_ANALISE').count(),
             'licitacoes_abertas': Edital.objects.filter(status='ABERTO').count(),
             'contratos_vigentes': Contrato.objects.filter(status='VIGENTE').count(),
-            # A lógica de pagamentos pendentes pode variar, este é um exemplo
-            'pagamentos_pendentes': Pagamento.objects.exclude(status='PAGO').count() if hasattr(Pagamento, 'status') else 0,
         }
+        
+        # --- NOVA LÓGICA PARA O GRÁFICO DE STATUS ---
+        # Agrupa os ETPs por status e conta quantos há em cada um
+        status_data = ETP.objects.values('status') \
+            .annotate(count=Count('id')) \
+            .order_by('status')
+
+        # Cria um dicionário para traduzir o código do status (ex: 'EM_ELABORACAO') para o nome legível
+        status_display_map = dict(ETP._meta.get_field('status').choices)
+
+        labels_status = [status_display_map.get(item['status'], item['status']) for item in status_data]
+        data_status = [item['count'] for item in status_data]
 
     context = {
-        'dashboard_stats': dashboard_stats
+        'dashboard_stats': dashboard_stats,
+        'labels_status': labels_status,
+        'data_status': data_status,
     }
     return render(request, 'core/home.html', context)
 
@@ -103,9 +122,7 @@ def criar_processo_view(request):
     }
     return render(request, 'core/criar_processo.html', context)
 
-# SysGov_Project/core/views.py
 
-# Em SysGov_Project/core/views.py
 
 from django.shortcuts import render, get_object_or_404
 from django.contrib.contenttypes.models import ContentType
@@ -319,3 +336,53 @@ def editar_fornecedor(request, pk):
         'titulo_pagina': 'Editar Fornecedor'
     }
     return render(request, 'core/editar_fornecedor.html', context)
+
+
+
+@login_required
+def dashboard_gerencial_view(request):
+    """
+    Coleta e prepara os dados para o dashboard gerencial com múltiplos gráficos.
+    """
+    # --- Gráfico 1: Distribuição de ETPs por Status ---
+    status_data = ETP.objects.values('status').annotate(count=Count('id')).order_by('status')
+    status_display_map = dict(ETP._meta.get_field('status').choices)
+    labels_status = [status_display_map.get(item['status'], item['status']) for item in status_data]
+    data_status = [item['count'] for item in status_data]
+
+    # --- Gráfico 2: Top 5 Fornecedores por Valor Contratado ---
+    top_fornecedores_data = Contrato.objects.values('contratado__razao_social') \
+        .annotate(total_valor=Sum('valor_total')) \
+        .order_by('-total_valor')[:5]
+    labels_fornecedores = [item['contratado__razao_social'] for item in top_fornecedores_data]
+    data_fornecedores = [float(item['total_valor']) for item in top_fornecedores_data]
+
+    # --- Gráfico 3: Economia Média Mensal em Licitações ---
+    economia_mensal_data = ResultadoLicitacao.objects.filter(
+        valor_estimado_inicial__isnull=False, 
+        valor_homologado__isnull=False
+    ).annotate(mes=TruncMonth('data_homologacao')) \
+     .values('mes') \
+     .annotate(
+        economia_total=Sum(F('valor_estimado_inicial') - F('valor_homologado')),
+        num_licitacoes=Count('id')
+     ).order_by('mes')
+    
+    labels_economia = [item['mes'].strftime('%b/%Y') for item in economia_mensal_data]
+    data_economia = []
+    for item in economia_mensal_data:
+        if item['num_licitacoes'] > 0:
+            data_economia.append(float(item['economia_total'] / item['num_licitacoes']))
+        else:
+            data_economia.append(0)
+
+    context = {
+        'titulo_pagina': 'Dashboard Gerencial',
+        'labels_status': labels_status,
+        'data_status': data_status,
+        'labels_fornecedores': labels_fornecedores,
+        'data_fornecedores': data_fornecedores,
+        'labels_economia': labels_economia,
+        'data_economia': data_economia,
+    }
+    return render(request, 'core/dashboard_gerencial.html', context)

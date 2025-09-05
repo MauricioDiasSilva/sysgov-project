@@ -55,19 +55,27 @@ def listar_empenhos(request):
     return render(request, 'financeiro/listar_empenhos.html', context)
 
 
-# --- GESTÃO DE DOCUMENTOS FISCAIS ---
 
-
-# --- Views de Detalhes e Edição ---
 @login_required
 def detalhar_documento_fiscal(request, pk):
-    df = get_object_or_404(DocumentoFiscal, pk=pk)
-    # Verificação de permissão do usuário
-    if df.processo_vinculado and df.processo_vinculado.usuario != request.user and not request.user.is_superuser:
+    doc_fiscal = get_object_or_404(DocumentoFiscal, pk=pk)
+    
+    # MANTEMOS a sua verificação de permissão, que está perfeita.
+    if doc_fiscal.processo_vinculado and doc_fiscal.processo_vinculado.usuario != request.user and not request.user.is_superuser:
         messages.error(request, "Você não tem permissão para visualizar este Documento Fiscal.")
         return redirect('financeiro:dashboard_financeiro')
-    context = {'documento': df, 'titulo_pagina': f'Detalhes DF: {df.documento_fiscal_numero}'}
-    return render(request, 'financeiro/detalhar_documento.html', context)
+
+    # ADICIONAMOS a busca pelos pagamentos associados.
+    pagamentos_associados = doc_fiscal.pagamentos.all()
+
+    context = {
+        'doc_fiscal': doc_fiscal,
+        'pagamentos': pagamentos_associados, # <<< Enviamos a lista de pagamentos para o template
+        'titulo_pagina': f'Detalhes da NF {doc_fiscal.documento_fiscal_numero}'
+    }
+    # ATUALIZAMOS o nome do template para o nosso novo padrão.
+    return render(request, 'financeiro/detalhar_documento_fiscal.html', context)
+
 
 @login_required
 def criar_documento_fiscal(request, contrato_id):
@@ -119,11 +127,20 @@ def editar_documento_fiscal(request, pk):
 
 @login_required
 def detalhar_pagamento(request, pk):
-    pg = get_object_or_404(Pagamento, pk=pk)
-    if pg.processo_vinculado and pg.processo_vinculado.usuario != request.user and not request.user.is_superuser:
+    pagamento = get_object_or_404(Pagamento, pk=pk)
+    
+    # --- INÍCIO DA CORREÇÃO ---
+    # A verificação de permissão agora segue o caminho correto através do Documento Fiscal.
+    processo_do_pagamento = pagamento.documento_fiscal.processo_vinculado
+    if processo_do_pagamento and processo_do_pagamento.usuario != request.user and not request.user.is_superuser:
         messages.error(request, "Você não tem permissão para visualizar este Pagamento.")
         return redirect('financeiro:dashboard_financeiro')
-    context = {'pagamento': pg, 'titulo_pagina': f'Detalhes Pagto: {pg.documento_fiscal_numero}'}
+    # --- FIM DA CORREÇÃO ---
+
+    context = {
+        'pagamento': pagamento,
+        'titulo_pagina': f'Detalhes do Pagamento (NF {pagamento.documento_fiscal.documento_fiscal_numero})'
+    }
     return render(request, 'financeiro/detalhar_pagamento.html', context)
 
 
@@ -157,27 +174,32 @@ def criar_pagamento(request, doc_fiscal_id):
 @login_required
 @permission_required('financeiro.change_pagamento', raise_exception=True)
 def editar_pagamento(request, pk):
-    pg = get_object_or_404(Pagamento, pk=pk)
-    if pg.processo_vinculado and pg.processo_vinculado.usuario != request.user and not request.user.is_superuser:
+    pagamento = get_object_or_404(Pagamento, pk=pk)
+
+    # --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+    # A verificação de permissão agora segue o caminho correto através do Documento Fiscal.
+    processo_do_pagamento = pagamento.documento_fiscal.processo_vinculado
+    if processo_do_pagamento and processo_do_pagamento.usuario != request.user and not request.user.is_superuser:
         messages.error(request, "Você não tem permissão para editar este Pagamento.")
-        return redirect('financeiro:detalhar_pagamento', pk=pg.pk)
+        return redirect('financeiro:detalhar_pagamento', pk=pagamento.pk)
+    # --- FIM DA CORREÇÃO DEFINITIVA ---
 
     if request.method == 'POST':
-        form = PagamentoForm(request.POST, instance=pg)
+        form = PagamentoForm(request.POST, instance=pagamento)
         if form.is_valid():
             form.save()
             messages.success(request, 'Pagamento atualizado com sucesso!')
-            return redirect('financeiro:detalhar_pagamento', pk=pg.pk)
-        else:
-            messages.error(request, 'Erro ao atualizar Pagamento. Verifique os campos.')
+            return redirect('financeiro:detalhar_pagamento', pk=pagamento.pk)
     else:
-        form = PagamentoForm(instance=pg)
+        form = PagamentoForm(instance=pagamento)
+
     context = {
         'form': form,
-        'pagamento': pg,
-        'titulo_pagina': f'Editar Pagamento: {pg.documento_fiscal_numero}'
+        'pagamento': pagamento,
+        'titulo_pagina': f'Editar Pagamento (NF {pagamento.documento_fiscal.documento_fiscal_numero})'
     }
     return render(request, 'financeiro/editar_pagamento.html', context)
+
 
 
 # --- GESTÃO DE NOTAS DE EMPENHO ---
@@ -420,57 +442,6 @@ def gerar_edital_audesp_json(request, edital_id):
     return response
 
 
-
-# SysGov_Project/financeiro/views.py
-
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required, permission_required
-from django.contrib import messages
-from .models import Pagamento # Importe o modelo Pagamento
-from .forms import PagamentoForm # Importe o formulário PagamentoForm
-
-# ... (todas as suas outras views) ...
-
-# --- NOVA VIEW PARA EDITAR PAGAMENTO ---
-@login_required
-@permission_required('financeiro.change_pagamento', raise_exception=True)
-def editar_pagamento(request, pk):
-    pagamento = get_object_or_404(Pagamento, pk=pk)
-
-    # Opcional: Verificação adicional de permissão se o usuário é o responsável pelo processo/pagamento
-    if pagamento.processo_vinculado and pagamento.processo_vinculado.usuario != request.user and not request.user.is_superuser:
-        messages.error(request, "Você não tem permissão para editar este Pagamento.")
-        return redirect('financeiro:detalhar_pagamento', pk=pagamento.pk)
-
-    if request.method == 'POST':
-        form = PagamentoForm(request.POST, instance=pagamento) # Usa a instância para pré-preencher
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Pagamento atualizado com sucesso!')
-            return redirect('financeiro:detalhar_pagamento', pk=pagamento.pk)
-        else:
-            messages.error(request, 'Erro ao atualizar Pagamento. Verifique os campos.')
-    else: # GET request
-        form = PagamentoForm(instance=pagamento)
-
-    context = {
-        'form': form,
-        'pagamento': pagamento,
-        'titulo_pagina': f'Editar Pagamento: {pagamento.documento_fiscal_numero}'
-    }
-    return render(request, 'financeiro/editar_pagamento.html', context)
-
-
-
-# Em financeiro/views.py
-
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from .forms import NotaEmpenhoForm # Crie ou adicione a esta importação
-from contratacoes.models import Contrato # Precisamos do modelo Contrato
-
-# ... (suas outras views de financeiro) ...
 
 @login_required
 def criar_empenho(request, contrato_id):

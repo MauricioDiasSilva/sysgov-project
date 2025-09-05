@@ -3,9 +3,11 @@
 from django.urls import path
 from . import views # Para as views normais do core
 
+app_name = 'core'
+
 urlpatterns = [
     # URLs para as páginas principais do core
-    path('', views.home_view, name='home'),
+    path('', views.home, name='home'),
     path('meus-processos/', views.meus_processos_view, name='meus_processos'),
     path('processos/novo/', views.criar_processo_view, name='criar_processo'),
     path('processos/<int:processo_id>/', views.detalhes_processo_view, name='detalhes_processo'),
@@ -25,5 +27,7 @@ urlpatterns = [
     path('fornecedores/novo/', views.criar_fornecedor, name='criar_fornecedor'),
     path('fornecedores/<int:pk>/', views.detalhar_fornecedor, name='detalhar_fornecedor'),
     path('fornecedores/<int:pk>/editar/', views.editar_fornecedor, name='editar_fornecedor'),
-    # FIM DA ADIÇÃO <<<
+    
+    path('dashboard/', views.dashboard_gerencial_view, name='dashboard_gerencial'),
+    
 ]
